@@ -103,27 +103,10 @@ export function RamadanCountdown({ hijriEffective, todayPrayerTimes, now }) {
   );
 }
 
-// --- Friday khutbah timer --------------------------------------------------
-
-// On Friday, before dhuhr, show "الخطبة بعد — ..." counting down to dhuhr.
-// We use the local Gregorian weekday (Friday = 5) since the weekly schedule
-// is Gregorian-driven even in Muslim-majority weeks.
-export function FridayKhutbahTimer({ todayPrayerTimes, now }) {
-  if (now.getDay() !== 5) return null;
-  const dhuhr = todayPrayerTimes?.timesIso?.dhuhr;
-  if (!dhuhr) return null;
-  const dhuhrMs = new Date(dhuhr).getTime();
-  if (!Number.isFinite(dhuhrMs)) return null;
-  if (now.getTime() >= dhuhrMs) return null;
-  // Only show within the last 2 hours before dhuhr to avoid all-day clutter.
-  if (dhuhrMs - now.getTime() > 2 * 60 * 60 * 1000) return null;
-  return (
-    <div className="countdown-ribbon">
-      <span className="countdown-ribbon__label">خطبة الجمعة بعد</span>
-      <span>{formatCountdown(dhuhr, now.getTime())}</span>
-    </div>
-  );
-}
+// FridayKhutbahTimer retired 2026-04-23 — the pre-khutbah countdown was
+// only informative for ~90 minutes on Fridays and noise the rest of the
+// week. The dashboard's upcoming-event strip already surfaces Jumu'ah
+// on the day itself.
 
 // --- Qibla badge -----------------------------------------------------------
 
@@ -154,37 +137,10 @@ export function QiblaBadge() {
   );
 }
 
-// --- 14 Infallibles rotator ------------------------------------------------
-
-const MASUMIN = [
-  'النبي محمد ﷺ',
-  'الإمام علي بن أبي طالب عليه السلام',
-  'السيدة فاطمة الزهراء عليها السلام',
-  'الإمام الحسن المجتبى عليه السلام',
-  'الإمام الحسين الشهيد عليه السلام',
-  'الإمام علي زين العابدين عليه السلام',
-  'الإمام محمد الباقر عليه السلام',
-  'الإمام جعفر الصادق عليه السلام',
-  'الإمام موسى الكاظم عليه السلام',
-  'الإمام علي الرضا عليه السلام',
-  'الإمام محمد الجواد عليه السلام',
-  'الإمام علي الهادي عليه السلام',
-  'الإمام الحسن العسكري عليه السلام',
-  'الإمام المهدي المنتظر عجّل الله فرجه الشريف',
-];
-
-export function InfalliblesRotator() {
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setIdx((i) => (i + 1) % MASUMIN.length), 8000);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div className="infallibles-rotator" key={idx} aria-live="off">
-      {MASUMIN[idx]}
-    </div>
-  );
-}
+// InfalliblesRotator retired 2026-04-23 — the rotating 14-name strip
+// added no actionable signal and pushed the prayer cells around. Kept
+// as a single-line tombstone so future passes don't reintroduce it
+// without intent.
 
 // --- Dhikr counter removed ------------------------------------------------
 //

@@ -15,8 +15,7 @@ import {
   TileBand, SalawatLine, StarPatternBg
 } from './Ornaments.jsx';
 import {
-  AnnouncementBanner, RamadanCountdown, FridayKhutbahTimer,
-  QiblaBadge, InfalliblesRotator
+  AnnouncementBanner, RamadanCountdown, QiblaBadge
 } from './DashboardFeatures.jsx';
 
 function useClock() {
@@ -332,15 +331,11 @@ export default function Dashboard() {
           autoHideSeconds={Number(config?.announcementAutoHideSeconds) || 0}
         />
       )}
-      {/* InfalliblesRotator was here — moved into the footer below
-          so it sits in dedicated layout space instead of floating
-          on top of the prayer cells. */}
       {featureOn('qiblaDisplay', true) && <QiblaBadge />}
-      {/* InfalliblesRotator moved into the header flow in 0.8.43 —
-          see inside the masthead header below. Previously it floated
-          bottom-centre absolute and collided visually with the
-          salawat strip + prayer-row; operator asked for a better
-          location and formatting. */}
+      {/* InfalliblesRotator retired 2026-04-23 per operator request —
+          the 14-name rotator competed with the prayer cells for
+          attention and offered no actionable information. Feature
+          flag deleted from defaults in the same pass. */}
       <div className="dashboard__frame" aria-hidden="true" />
       <div className="dashboard__frame dashboard__frame--inner" aria-hidden="true" />
 
@@ -369,7 +364,6 @@ export default function Dashboard() {
               <div className="dashboard__greg">{greg}</div>
             </div>
           )}
-          {featureOn('infalliblesRotator', true) && <InfalliblesRotator />}
         </header>
 
         {/* ZONE 2 — clock + mihrab + next prayer */}
@@ -415,11 +409,11 @@ export default function Dashboard() {
               <RamadanCountdown hijriEffective={hijriEffective} todayPrayerTimes={today} now={now} />
             </div>
           )}
-          {featureOn('fridayKhutbahTimer', true) && (
-            <div style={{ textAlign: 'center' }}>
-              <FridayKhutbahTimer todayPrayerTimes={today} now={now} />
-            </div>
-          )}
+          {/* FridayKhutbahTimer retired 2026-04-23 — the countdown to
+              the Friday khutbah is interesting for ~90 minutes once a
+              week and purely noise otherwise. The dashboard's
+              upcoming-event strip already surfaces Jumu'ah when it's
+              today, which is enough signal. */}
           {today?.timesIso && (
             <div className="prayer-row" style={{ gridTemplateColumns: `repeat(${prayerOrder.length}, 1fr)` }}>
               {prayerOrder.map((key) => {

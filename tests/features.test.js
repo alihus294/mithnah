@@ -21,16 +21,20 @@ function tmpDir() {
 // (A) Feature framework
 // ---------------------------------------------------------------------------
 
-test('[features] defaults include all 12 flags with expected defaults', () => {
+test('[features] defaults cover every live flag with expected defaults', () => {
   const { defaultFeatures } = require('../src/main/prayer-times/defaults');
   const f = defaultFeatures();
   assert.strictEqual(f.maghribPivot, true);
   assert.strictEqual(f.ramadanCountdown, true);
-  assert.strictEqual(f.fridayKhutbahTimer, true);
   assert.strictEqual(f.qiblaDisplay, false); // default OFF (0.8.33)
-  assert.strictEqual(f.infalliblesRotator, true);
-  // dhikrCounter key was retired in 0.8.28 — assert it's gone.
-  assert.strictEqual(f.dhikrCounter, undefined);
+  // Retired flags — assert they're gone so a future refactor doesn't
+  // silently reintroduce them:
+  //   - dhikrCounter          (0.8.28)
+  //   - fridayKhutbahTimer    (2026-04-23)
+  //   - infalliblesRotator    (2026-04-23)
+  assert.strictEqual(f.dhikrCounter,       undefined);
+  assert.strictEqual(f.fridayKhutbahTimer, undefined);
+  assert.strictEqual(f.infalliblesRotator, undefined);
   assert.strictEqual(f.configBackup, true);
   // Sensitive/destructive toggles default OFF.
   assert.strictEqual(f.announcementBanner, false);

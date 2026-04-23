@@ -80,9 +80,7 @@ const FEATURE_GROUPS = [
     items: [
       { key: 'announcementBanner', label: 'شريط الإعلانات أعلى الشاشة' },
       { key: 'ramadanCountdown',   label: 'العدّ التنازلي للإفطار في رمضان' },
-      { key: 'fridayKhutbahTimer', label: 'مؤقّت خطبة الجمعة' },
       { key: 'qiblaDisplay',       label: 'عرض اتجاه القبلة والمسافة إلى مكة' },
-      { key: 'infalliblesRotator', label: 'شريط المعصومين الأربعة عشر' },
     ],
   },
   {

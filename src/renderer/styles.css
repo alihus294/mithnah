@@ -2450,38 +2450,9 @@ input, textarea, [contenteditable="true"] {
  * at-bottom placement collided visually with the salawat strip and
  * read as a floating afterthought; in-flow with subtle accent rules
  * framing the name reads as an intentional "today we honour…" line. */
-.infallibles-rotator {
-  display: flex; align-items: center; justify-content: center;
-  gap: clamp(10px, 1.5vw, 20px);
-  margin-top: var(--m-space-md);
-  padding: 0 clamp(16px, 2vw, 32px);
-  font-family: var(--m-font-display);
-  font-size: clamp(17px, 1.5vw, 28px);
-  color: var(--m-accent-bright);
-  white-space: nowrap;
-  max-width: 90vw;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  pointer-events: none;
-  opacity: 0;
-  animation: infallible-fade 8s ease infinite;
-}
-/* Gold hairline rules flanking the imam name — makes the line feel
- * like an inscription, not a banner. */
-.infallibles-rotator::before,
-.infallibles-rotator::after {
-  content: '';
-  flex: 1 1 clamp(40px, 8vw, 140px);
-  max-width: clamp(40px, 8vw, 140px);
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--m-hairline-bright), transparent);
-}
-@keyframes infallible-fade {
-  0%   { opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { opacity: 0; }
-}
+/* .infallibles-rotator rules retired 2026-04-23 along with the
+ * component. Tombstoned in styles.css too so a future pass doesn't
+ * resurrect orphan CSS. */
 
 /* Friday khutbah timer + Ramadan iftar countdown share a centred ribbon
    above the prayer row. */

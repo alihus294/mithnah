@@ -126,13 +126,16 @@ function defaultFeatures() {
     maghribPivot: true,
     announcementBanner: false,
     ramadanCountdown: true,
-    fridayKhutbahTimer: true,
     // Qibla default OFF per operator request (0.8.33). The Mithnah
-     // mosque audience already faces qibla during prayer and the
-     // badge was adding visual noise to the wall. Users who want it
-     // can still enable it from F3 → متقدّم → عناصر العرض.
+    // mosque audience already faces qibla during prayer and the
+    // badge was adding visual noise to the wall. Users who want it
+    // can still enable it from F3 → متقدّم → عناصر العرض.
     qiblaDisplay: false,
-    infalliblesRotator: true,
+    // fridayKhutbahTimer + infalliblesRotator retired 2026-04-23 —
+    // the Friday countdown was relevant ~90 min / week, the rotating
+    // 14-name strip added no actionable signal. Tombstoned in
+    // DashboardFeatures.jsx so a future pass doesn't reintroduce
+    // them without intent.
     // dhikrCounter removed — wall-display use case didn't justify it;
     // operator asked to remove it in 0.8.16 and the last traces were
     // swept in 0.8.28.
