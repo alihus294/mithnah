@@ -61,7 +61,12 @@ function register(ipcMain, logger = console) {
   // in Settings; offline-first default preserved.
   ipcMain.handle(CHANNELS.nearbyPlaces, async (_event, { lat, lng, radiusKm } = {}) => {
     try {
-      const places = await location.nearbyPlacesOverpass(Number(lat), Number(lng), { radiusKm: Number(radiusKm) || 10 });
+      // Fall through to the module's own default (currently 25 km)
+      // when the renderer doesn't pass an explicit radius. Previously
+      // hardcoded 10 km here overrode any bump upstream.
+      const passthrough = Number(radiusKm);
+      const places = await location.nearbyPlacesOverpass(Number(lat), Number(lng),
+        Number.isFinite(passthrough) && passthrough > 0 ? { radiusKm: passthrough } : {});
       return { ok: true, data: places };
     } catch (err) {
       logger.error('[location] nearby-places failed:', err);

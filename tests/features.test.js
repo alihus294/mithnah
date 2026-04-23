@@ -231,10 +231,26 @@ test('[auto-content] picks Dua Arafah on 9 Dhul-Hijjah', () => {
   assert.ok(deck && Array.isArray(deck.slides) && deck.slides.length > 0);
 });
 
-test('[auto-content] returns null on an ordinary day with no event', () => {
+test('[auto-content] falls back to a weekday deck on an ordinary day', () => {
+  // Reworked 2026-04-23: operator reported "دعاء اليوم ما يشتغل"
+  // because the feature returned null on every non-event day.
+  // pickAutoDeck now returns a weekday-mapped deck so the caretaker
+  // always sees SOMETHING meaningful.
+  const { pickAutoDeck, WEEKDAY_FALLBACK } = require('../src/main/auto-content');
+  // Fixed Monday (2026-04-20 is a Monday) — no events, no Ramadan.
+  const monday = new Date(2026, 3, 20);
+  const pick = pickAutoDeck([], { now: monday, hijri: { year: 1447, month: 10, day: 3 } });
+  assert.deepStrictEqual(pick, WEEKDAY_FALLBACK[1]);
+  // Empty-events + undefined opts still yields a fallback (safe default).
+  const today = pickAutoDeck([]);
+  assert.ok(today && today.kind && today.id);
+});
+
+test('[auto-content] returns Iftitah across any Ramadan day with no specific event', () => {
   const { pickAutoDeck } = require('../src/main/auto-content');
-  assert.strictEqual(pickAutoDeck([]), null);
-  assert.strictEqual(pickAutoDeck(null), null);
+  // Random Ramadan day (5 Ramadan, no event).
+  const pick = pickAutoDeck([], { hijri: { year: 1447, month: 9, day: 5 }, now: new Date(2026, 3, 24) });
+  assert.deepStrictEqual(pick, { kind: 'dua', id: 'iftitah' });
 });
 
 test('[auto-content] prefers shahadah over wiladah when both collide', () => {

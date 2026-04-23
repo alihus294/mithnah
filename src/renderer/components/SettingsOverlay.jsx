@@ -1202,16 +1202,25 @@ export default function SettingsOverlay() {
                 <div className="settings__changelog">
                   <button type="button" className="settings__btn" onClick={onUndo}>↶ تراجع آخر تغيير</button>
                   <ol className="settings__changelog-list">
-                    {[...undoStackInternal].reverse().map((entry, i) => (
-                      <li key={entry.ts + ':' + i}>
-                        <span className="settings__changelog-when">
-                          {new Date(entry.ts).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </span>
-                        <span className="settings__changelog-summary">
-                          {entry.summary?.mosqueName || '—'} · {entry.summary?.locationName || '—'}
-                        </span>
-                      </li>
-                    ))}
+                    {[...undoStackInternal].reverse().map((entry, i) => {
+                      const changes = entry.summary?.changes || [];
+                      return (
+                        <li key={entry.ts + ':' + i}>
+                          <span className="settings__changelog-when">
+                            {new Date(entry.ts).toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                          {changes.length > 0 ? (
+                            <ul className="settings__changelog-changes">
+                              {changes.map((c, j) => (
+                                <li key={j} className="settings__changelog-change">{c}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="settings__changelog-summary">حفظ بدون تغييرات ظاهرة</span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ol>
                 </div>
               )}

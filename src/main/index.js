@@ -1606,7 +1606,10 @@ app.whenReady().then(async () => {
         const todayPrayer = prayerTimes.getTodayAndNext().today;
         const hEffective = effectiveHijriForEvents(current, todayPrayer);
         const events = shiaContent.eventsForHijriDate(hEffective.year, hEffective.month, hEffective.day);
-        const pick = autoContent.pickAutoDeck(events);
+        // Pass hijri + current date so the updated pickAutoDeck can
+        // fall back to Ramadan-specific + weekday-specific defaults
+        // on days with no mapped event.
+        const pick = autoContent.pickAutoDeck(events, { hijri: hEffective, now: new Date() });
         if (pick) {
           let deck = null;
           if (pick.kind === 'dua')     deck = shiaContent.getDua(pick.id);

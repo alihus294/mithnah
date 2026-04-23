@@ -2291,7 +2291,11 @@ input, textarea, [contenteditable="true"] {
   border-bottom: 1px solid var(--m-hairline-faint);
   font-size: 15px;
   color: var(--m-text-secondary);
-  display: flex; gap: 12px; justify-content: space-between;
+  /* Timestamp on the right, full change list flows below it — beats
+   * the old single-line "mosqueName · locationName" summary which
+   * was identical for every entry and never told the operator which
+   * of the 10 entries was the one they wanted to undo. */
+  display: flex; flex-direction: column; gap: 4px;
 }
 .settings__changelog-list li:last-child { border-bottom: none; }
 .settings__changelog-when {
@@ -2302,8 +2306,25 @@ input, textarea, [contenteditable="true"] {
 }
 .settings__changelog-summary {
   flex: 1;
-  text-align: right;
   font-family: var(--m-font-body);
+  font-style: italic;
+  color: var(--m-text-muted);
+}
+.settings__changelog-changes {
+  list-style: none;
+  margin: 4px 0 0 0;
+  padding: 0 14px 0 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.settings__changelog-change {
+  padding: 4px 10px;
+  background: rgba(226, 183, 106, 0.06);
+  border-right: 2px solid var(--m-hairline-bright);
+  border-radius: 4px;
+  font-family: var(--m-font-body);
+  font-size: 14px;
+  color: var(--m-text-primary);
+  line-height: 1.5;
 }
 
 /* Announcement banner — LARGE animated strip at the very top of the

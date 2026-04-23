@@ -25,11 +25,44 @@
 // cap with line-height 1.55 and is too dense when the font grows.
 const DEFAULT_MAX_LINES = 2;
 const DEFAULT_MAX_CHARS = 160;
+// A single source line longer than this is wrapped at the nearest
+// word boundary into sub-lines. Without this, a caretaker pasting
+// a dua as one long paragraph ended up with one or two giant
+// crammed pages instead of a properly paginated deck (operator
+// 2026-04-23: "فيه ادعية تصير مجمعة كلها في صفحتين").
+const DEFAULT_WRAP_CHARS = 90;
+
+// Wrap a single long string at word boundaries so no sub-line
+// exceeds `maxChars`. Preserves Arabic diacritics and whitespace
+// runs — we only split on actual space characters, never inside a
+// word or a glued phrase like "صلى الله عليه وآله".
+function wrapLongLine(line, maxChars) {
+  if (line.length <= maxChars) return [line];
+  const words = line.split(/\s+/);
+  const out = [];
+  let cur = '';
+  for (const w of words) {
+    if (!w) continue;
+    // A single word longer than maxChars — no good split point, so
+    // let it live on its own line (better than splitting mid-word).
+    if (cur === '' && w.length > maxChars) { out.push(w); continue; }
+    const candidate = cur ? cur + ' ' + w : w;
+    if (candidate.length > maxChars && cur) {
+      out.push(cur);
+      cur = w;
+    } else {
+      cur = candidate;
+    }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
 
 function chunkSlides(slides, opts = {}) {
   if (!Array.isArray(slides) || slides.length === 0) return slides || [];
   const maxLines = opts.maxLines || DEFAULT_MAX_LINES;
   const maxChars = opts.maxChars || DEFAULT_MAX_CHARS;
+  const wrapChars = opts.wrapChars || DEFAULT_WRAP_CHARS;
 
   const out = [];
   let buffer = null; // { lines: string[], chars: number }
@@ -48,10 +81,14 @@ function chunkSlides(slides, opts = {}) {
     }
     const line = String(slide.ar || '').trim();
     if (!line) continue;
-    // Count the longest line in the slide (it may itself be multi-line
-    // already if the source file used `\n`). We treat each \n-separated
-    // line individually for the budget check.
-    const incomingLines = line.split('\n').map(l => l.trim()).filter(Boolean);
+    // Treat each \n-separated sub-line individually, THEN word-wrap
+    // any sub-line longer than wrapChars. The two steps compose:
+    // the editor can split manually and we still catch accidentally
+    // long runs that would otherwise crush a page.
+    const incomingLines = line.split('\n')
+      .map(l => l.trim())
+      .filter(Boolean)
+      .flatMap(l => wrapLongLine(l, wrapChars));
     for (const l of incomingLines) {
       const wouldExceedLines = buffer && buffer.lines.length + 1 > maxLines;
       const wouldExceedChars = buffer && buffer.chars + l.length + 1 > maxChars;

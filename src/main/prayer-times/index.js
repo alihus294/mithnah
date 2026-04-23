@@ -53,16 +53,107 @@ function _pushUndo(snapshot) {
   while (_undoStack.length > UNDO_LIMIT) _undoStack.shift();
 }
 
-function listUndoStack() {
-  return _undoStack.map(({ ts, config }) => ({
-    ts,
-    summary: {
-      mosqueName: config.mosqueName,
-      method: config.method,
-      marja: config.marja,
-      locationName: config.location?.name
+// Compute a short per-entry description of WHAT actually changed
+// between two config snapshots. Entry N's "before" is the snapshot;
+// "after" is entry N+1's snapshot (or the live config for the most
+// recent entry). The operator sees human phrases like "اسم المسجد:
+// جامع الإمام ← مسجد الإمام" instead of the old row which only
+// showed mosqueName+locationName whether or not they changed.
+const FIELD_LABELS_AR = {
+  mosqueName:      'اسم المسجد',
+  imamName:        'اسم الإمام',
+  'location.name': 'الموقع',
+  method:          'طريقة الحساب',
+  calendar:        'التقويم الهجري',
+  marja:           'المرجعية',
+  hijriShift:      'إزاحة التقويم',
+  clockFormat:     'صيغة الساعة',
+  announcementText: 'نصّ الإعلان',
+  announcementAutoHideSeconds: 'مدّة الإعلان',
+  supportContact:  'جهة الدعم',
+};
+const PRAYER_LABELS_AR = {
+  fajr: 'الفجر', dhuhr: 'الظهر', asr: 'العصر',
+  maghrib: 'المغرب', isha: 'العشاء', sunrise: 'الشروق'
+};
+const FEATURE_LABELS_AR = {
+  announcementBanner: 'شريط الإعلانات',
+  ramadanCountdown:   'عدّاد الإفطار',
+  qiblaDisplay:       'عرض القبلة',
+  maghribPivot:       'محور المغرب',
+  autoContentToday:   'فتح دعاء اليوم تلقائياً',
+  autoLaunch:         'التشغيل التلقائي مع ويندوز',
+  kioskLock:          'قفل العرض',
+  settingsPin:        'PIN الإعدادات',
+  configBackup:       'النسخ الاحتياطي',
+  largeText:          'خط كبير للعرض',
+};
+
+function formatVal(v) {
+  if (v === undefined || v === null || v === '') return '—';
+  if (v === true) return 'مُفعَّل';
+  if (v === false) return 'معطَّل';
+  return String(v);
+}
+
+function summarizeDiff(before, after) {
+  if (!before || !after) return [];
+  const changes = [];
+  // Top-level scalars
+  for (const k of Object.keys(FIELD_LABELS_AR)) {
+    if (k.startsWith('location.')) continue;
+    const bv = before[k];
+    const av = after[k];
+    if (bv !== av) changes.push(`${FIELD_LABELS_AR[k]}: ${formatVal(bv)} ← ${formatVal(av)}`);
+  }
+  // Nested: location.name (other lat/lng fields are noise — the
+  // display name already conveys "moved location" in a readable way)
+  const bl = before.location?.name;
+  const al = after.location?.name;
+  if (bl !== al) changes.push(`${FIELD_LABELS_AR['location.name']}: ${formatVal(bl)} ← ${formatVal(al)}`);
+  // Prayer-time adjustments — surface each minute tweak individually
+  // so "Fajr +1" is distinguishable from "Maghrib -2".
+  const badj = before.adjustmentsMinutes || {};
+  const aadj = after.adjustmentsMinutes || {};
+  const adjKeys = new Set([...Object.keys(badj), ...Object.keys(aadj)]);
+  for (const k of adjKeys) {
+    if (badj[k] !== aadj[k]) {
+      const name = PRAYER_LABELS_AR[k] || k;
+      changes.push(`تعديل ${name}: ${formatVal(badj[k] || 0)} ← ${formatVal(aadj[k] || 0)} د`);
     }
-  }));
+  }
+  // Feature flags
+  const bf = before.features || {};
+  const af = after.features || {};
+  const flagKeys = new Set([...Object.keys(bf), ...Object.keys(af)]);
+  for (const k of flagKeys) {
+    if (bf[k] !== af[k]) {
+      const name = FEATURE_LABELS_AR[k] || k;
+      changes.push(`${name}: ${formatVal(bf[k])} ← ${formatVal(af[k])}`);
+    }
+  }
+  return changes;
+}
+
+function listUndoStack() {
+  // For each snapshot compute what changed relative to the NEXT
+  // snapshot (or the live config for the most recent entry). The
+  // result is an array of { ts, summary: { changes: [...] } }.
+  return _undoStack.map((entry, i) => {
+    const before = entry.config;
+    const after  = (i + 1 < _undoStack.length) ? _undoStack[i + 1].config : _config;
+    const changes = summarizeDiff(before, after);
+    return {
+      ts: entry.ts,
+      summary: {
+        changes,
+        // Retained for backwards-compat with any UI still reading
+        // these flat fields directly.
+        mosqueName: before.mosqueName,
+        locationName: before.location?.name
+      }
+    };
+  });
 }
 
 async function undoLast() {

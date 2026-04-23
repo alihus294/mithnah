@@ -159,7 +159,16 @@ async function reverseGeocodeNominatim(lat, lng, { timeoutMs = 5000, userAgent =
 // place=*. Free service, no API key, few-second typical response time.
 // Falls back gracefully to [] on any network or parse error — caller
 // should fall back to its offline city DB.
-async function nearbyPlacesOverpass(lat, lng, { radiusKm = 10, timeoutMs = 12_000, userAgent = 'Mithnah/1.0' } = {}) {
+// Default radius bumped from 10 km to 25 km (operator feedback
+// 2026-04-23): smaller Ahsa-region villages like الحليلة sit just
+// outside the 10 km ring from Hofuf while closer neighbours like
+// القارة fall inside, so the list was arbitrarily cutting off
+// legitimate candidate villages the caretaker needed. 25 km covers
+// full metropolitan clusters (Ahsa, Qatif-Dammam-Khobar, Baghdad,
+// Beirut suburbs) without blowing the result cap since we still
+// .slice(0, 40) and place-rank/distance ordering keeps the closest
+// ones at the top.
+async function nearbyPlacesOverpass(lat, lng, { radiusKm = 25, timeoutMs = 12_000, userAgent = 'Mithnah/1.0' } = {}) {
   const { lat: la, lng: ln } = validateCoordinates(lat, lng);
   const https = require('https');
   const placeFilter = '["place"~"^(city|town|village|hamlet|suburb|neighbourhood|isolated_dwelling)$"]';
