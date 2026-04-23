@@ -1268,6 +1268,82 @@ input, textarea, [contenteditable="true"] {
   border: 1px solid var(--m-hairline-bright);
   border-radius: 8px;
 }
+
+/* Update check panel — lives at the top of the advanced tab so a
+ * caretaker looking for "is there an update?" finds it immediately.
+ * The big button doubles as the primary action (check-now) and the
+ * restart-install action once a download is ready, swapping text
+ * between states. A 70-year-old must not have to read a legend. */
+.settings__update-section {
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  background: rgba(226, 183, 106, 0.06);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 8px;
+}
+.settings__update-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.settings__update-title {
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  color: var(--m-accent-bright);
+}
+.settings__update-version {
+  font-family: var(--m-font-body);
+  font-size: 14px;
+  color: var(--m-text-dim);
+}
+.settings__update-hint {
+  font-family: var(--m-font-body);
+  font-size: 14px;
+  color: var(--m-text-dim);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.settings__update-btn {
+  width: 100%;
+  min-height: 56px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.settings__update-btn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+/* "Ready to install" state — swap to a solid accent background to
+ * make it visually obvious that this button now does something
+ * bigger than a check. */
+.settings__update-btn--ready {
+  background: linear-gradient(135deg, var(--m-accent) 0%, var(--m-accent-bright) 100%) !important;
+  color: var(--m-bg-base) !important;
+  border-color: var(--m-accent-bright) !important;
+}
+.settings__update-btn--ready:hover {
+  filter: brightness(1.08);
+}
+.settings__update-msg {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-family: var(--m-font-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.settings__update-msg--ok {
+  background: rgba(226, 183, 106, 0.12);
+  border: 1px solid var(--m-hairline-bright);
+  color: var(--m-accent-bright);
+}
+.settings__update-msg--err {
+  background: rgba(255, 107, 88, 0.10);
+  border: 1px solid rgba(255, 107, 88, 0.35);
+  color: #ffb3a6;
+}
 .settings__connect-title {
   font-family: var(--m-font-display);
   font-size: 19px;

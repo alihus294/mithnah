@@ -1833,3 +1833,36 @@ ipcMain.handle('app:kiosk-quit', (event, { pin } = {}) => {
 });
 
 let kioskQuitRequested = false;
+
+// Installed app version — surfaced to the renderer's UpdateSection so
+// the caretaker can read it aloud to a support contact. Reading the
+// value from `app.getVersion()` (not package.json) matches what
+// electron-updater compares against — avoids the "lock file says X,
+// app reports Y" discrepancy if a dev ever edits only one.
+ipcMain.handle('app:get-version', () => {
+  try { return { ok: true, data: app.getVersion() }; }
+  catch (err) { return { ok: false, error: err.message }; }
+});
+
+// "Restart now and install" — renderer calls this after the updater
+// has reached `ready` state, so the caretaker's tap on the big button
+// in F3 actually relaunches into the new build instead of waiting for
+// the next natural quit. Guarded against running before the download
+// finished.
+ipcMain.handle('app:updater-restart-install', () => {
+  try {
+    const mod = require('electron-updater');
+    if (!mod || !mod.autoUpdater) return { ok: false, error: 'updater unavailable' };
+    // First arg: `isSilent` — keep the classic installer UI so the
+    // operator sees the progress dialog. Second: `isForceRunAfter` —
+    // relaunch once install is done.
+    kioskQuitRequested = true;
+    setImmediate(() => {
+      try { mod.autoUpdater.quitAndInstall(false, true); }
+      catch (err) { console.error('[updater] quitAndInstall failed:', err); }
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});

@@ -104,6 +104,8 @@ contextBridge.exposeInMainWorld('electron', {
     importConfig:      () => ipcRenderer.invoke('app:import-config'),
     qibla:             () => ipcRenderer.invoke('app:qibla'),
     kioskQuit:         (payload) => ipcRenderer.invoke('app:kiosk-quit', payload),
+    getVersion:        async () => { const r = await ipcRenderer.invoke('app:get-version'); return r?.ok ? r.data : ''; },
+    restartAndInstall: () => ipcRenderer.invoke('app:updater-restart-install'),
     onKioskUnlockRequest: (callback) => bindChannel('kiosk:unlock-request', callback),
     // Mobile-control remote commands targeted at the renderer
     // overlays (open the prayer tracker, advance it, etc). Main

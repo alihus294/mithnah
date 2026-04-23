@@ -18,6 +18,7 @@ import { friendlyErrorTitle } from '../lib/errors.js';
 import { useModalActive } from '../lib/useModalActive.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
+import UpdateSection from './UpdateSection.jsx';
 
 const CITIES = [
   { id: 'najaf',       nameAr: 'النجف',      lat: 32.0256, lng: 44.3269 },
@@ -1143,6 +1144,8 @@ export default function SettingsOverlay() {
 
         {tab === 'advanced' && (
           <>
+            <UpdateSection />
+
             <Field label="الميزات — تشغيل/إيقاف" hint="كل ميزة تعمل مستقلّة؛ الإيقاف يُخفيها فوراً بدون إعادة تشغيل. الميزات مجمّعة حسب الغرض لتسهيل الفحص.">
               <div className="settings__feature-groups">
                 {FEATURE_GROUPS.map((group) => (
