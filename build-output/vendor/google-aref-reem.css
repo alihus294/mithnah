@@ -1,0 +1,39 @@
+/* Aref Ruqaa + Reem Kufi — bundled locally for Mithnah v0.6+.
+   SIL Open Font License (OFL). Files under ./fonts/. */
+
+@font-face {
+  font-family: 'Aref Ruqaa';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url(./fonts/aref-ruqaa-400.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Aref Ruqaa';
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url(./fonts/aref-ruqaa-700.ttf) format('truetype');
+}
+
+@font-face {
+  font-family: 'Reem Kufi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url(./fonts/reem-kufi-400.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Reem Kufi';
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url(./fonts/reem-kufi-500.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Reem Kufi';
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url(./fonts/reem-kufi-600.ttf) format('truetype');
+}

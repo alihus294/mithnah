@@ -1,0 +1,874 @@
+<!doctype html>
+<html lang="ar" dir="rtl" data-theme="light" data-occasion="normal">
+<head>
+  <meta charset="utf-8" />
+  <!-- WCAG 2.1 AA: allow zoom up to 500% for low-vision users. -->
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=5" />
+  <meta name="theme-color" content="#f4ecd6" />
+  <title>مئذنة — التحكم من الجوال</title>
+
+  <link href="/vendor/google-tajawal.css" rel="stylesheet" />
+  <link href="/vendor/google-cairo.css" rel="stylesheet" />
+  <link href="/vendor/google-amiri-scheherazade.css" rel="stylesheet" />
+  <link href="/vendor/google-aref-reem.css" rel="stylesheet" />
+  <link href="/vendor/mithnah-design.css" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════
+     * Mithnah Mobile Control — rebuilt from scratch (0.8.30).
+     *
+     * Architecture:
+     *   Auth screen → Dashboard with a bottom-tab nav (Home · Controls
+     *   · Library · Settings). Each tab is an independent view that
+     *   fetches its own slice of data. A single dashboard-refresh
+     *   poller keeps the Home tab current; the other tabs refresh on
+     *   focus so a stale library doesn't persist after the operator
+     *   adds content on the wall.
+     *
+     * Device matrix tested via CSS clamp + rem-based sizing:
+     *   • 320×568  (iPhone SE 1st gen)       — baseline narrow
+     *   • 390×844  (iPhone 13)               — typical phone
+     *   • 430×932  (iPhone 14 Pro Max)       — tall phone
+     *   • 768×1024 (iPad portrait)           — tablet portrait
+     *   • 1024×768 (iPad landscape)          — tablet landscape
+     * ═════════════════════════════════════════════════════════════ */
+    :root {
+      color-scheme: light;
+      /* Root size scales with viewport — 16-18px. 16px floor prevents
+       * iOS Safari from auto-zooming on input focus. */
+      font-size: clamp(16px, 4.1vw, 18px);
+      --m-font-fallback: 'SF Arabic', 'Segoe UI', Tahoma, 'Noto Naskh Arabic', system-ui, sans-serif;
+      /* Bottom tab-bar height + safe-area-inset-bottom. Used by the
+       * dashboard body padding so content never hides behind the nav. */
+      --m-nav-height: calc(68px + env(safe-area-inset-bottom, 0));
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--m-bg-base, #f4ecd6);
+      color: var(--m-text-primary, #2e1c08);
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      min-height: 100vh;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: none;
+    }
+    button { font: inherit; color: inherit; }
+    .hidden { display: none !important; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+
+    /* Interaction baseline — 44px hit target, visible focus ring,
+     * selectable text inside inputs, decorative text non-selectable. */
+    button, input[type="button"], input[type="submit"],
+    input[type="password"], input[type="text"], input[type="search"],
+    select, summary { min-height: 44px; }
+    button:focus-visible, input:focus-visible, select:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 3px solid var(--m-accent, #8b5a1a);
+      outline-offset: 2px;
+    }
+    h1, h2, h3, h4, p, label, .label, .eyebrow { -webkit-user-select: none; user-select: none; }
+
+    /* ═════════ AUTH SCREEN ═════════ */
+    .auth {
+      position: fixed; inset: 0;
+      background: var(--m-bg-base, #f4ecd6);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: max(32px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+      overflow-y: auto;
+    }
+    .auth::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--m-mihrab-glow); pointer-events: none;
+    }
+    .auth__brand {
+      position: relative;
+      margin-bottom: clamp(20px, 5vh, 44px);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .auth__glyph {
+      width: 48px; height: 48px; border-radius: 8px;
+      border: 1px solid var(--m-hairline-bright);
+      background: rgba(156, 111, 42, 0.08);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--m-accent);
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: 26px; font-weight: 700;
+    }
+    .auth__wordmark {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.6rem, 7vw, 2rem);
+      color: var(--m-text-primary);
+    }
+    .auth__card {
+      position: relative;
+      width: 100%; max-width: 420px;
+      background: var(--m-bg-raised);
+      border: 1px solid var(--m-hairline-bright);
+      border-radius: 14px;
+      padding: clamp(20px, 5vw, 32px) clamp(16px, 5vw, 24px);
+      box-shadow: var(--m-shadow-card);
+    }
+    .auth__title {
+      text-align: center; margin: 0 0 6px;
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.25rem, 5.5vw, 1.5rem);
+      font-weight: 700;
+    }
+    .auth__sub {
+      text-align: center; margin: 0 0 24px;
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      color: var(--m-text-muted);
+      line-height: 1.6;
+    }
+    #pin-input {
+      width: 100%;
+      background: var(--m-bg-inset);
+      border: 1.5px solid var(--m-hairline-bright);
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+      font-family: var(--m-font-numeral, var(--m-font-fallback));
+      /* ≥ 16px mandatory — iOS auto-zooms otherwise. */
+      font-size: clamp(28px, 8vw, 36px);
+      font-weight: 700;
+      color: var(--m-accent);
+      letter-spacing: 0.35em;
+      margin-bottom: 18px;
+      -webkit-user-select: text; user-select: text;
+    }
+    #pin-input:focus {
+      outline: 3px solid var(--m-accent);
+      outline-offset: 2px;
+      border-color: var(--m-accent);
+    }
+    #auth-submit {
+      width: 100%;
+      padding: 18px; min-height: 56px;
+      background: var(--m-accent); color: #fbf5e3;
+      border: none; border-radius: 10px;
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.1rem, 4.5vw, 1.25rem);
+      font-weight: 600; letter-spacing: 0.06em;
+      cursor: pointer;
+      box-shadow: 0 6px 20px var(--m-accent-glow);
+      transition: transform 80ms ease, background 120ms ease;
+    }
+    #auth-submit:active { transform: scale(0.98); background: var(--m-accent-bright, var(--m-accent)); }
+    #auth-status {
+      margin-top: 16px; min-height: 1.5rem;
+      text-align: center;
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      font-weight: 600; line-height: 1.5;
+    }
+    .m-status-danger { color: #8b3a3a; }
+    .m-status-info   { color: var(--m-text-muted); }
+    .auth__hint {
+      margin-top: 18px; text-align: center;
+      font-size: 13px; color: var(--m-text-muted);
+    }
+
+    /* ═════════ DASHBOARD (tabbed) ═════════ */
+    .dash {
+      min-height: 100dvh;
+      display: flex; flex-direction: column;
+      padding-bottom: var(--m-nav-height);
+    }
+    .dash__head {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: max(12px, env(safe-area-inset-top)) 16px 12px;
+      background: var(--m-bg-base);
+      border-bottom: 1px solid var(--m-hairline-faint);
+      gap: 12px;
+    }
+    .dash__brand {
+      display: flex; align-items: center; gap: 10px;
+      min-width: 0; flex: 1;
+    }
+    .dash__brand-glyph {
+      flex: 0 0 auto;
+      width: 36px; height: 36px; border-radius: 8px;
+      border: 1px solid var(--m-hairline-bright);
+      background: rgba(156, 111, 42, 0.08);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--m-accent);
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: 18px; font-weight: 700;
+    }
+    .dash__brand-name {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1rem, 4.3vw, 1.2rem);
+      color: var(--m-text-primary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .dash__actions { display: flex; gap: 6px; flex: 0 0 auto; }
+    .dash__btn {
+      min-width: 44px; min-height: 44px;
+      padding: 8px 14px;
+      background: transparent;
+      border: 1px solid var(--m-hairline);
+      color: var(--m-text-secondary);
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      transition: background 120ms ease, transform 80ms ease;
+    }
+    .dash__btn:active { background: rgba(156,111,42,0.14); transform: scale(0.97); }
+    .dash__btn--icon {
+      padding: 8px 12px;
+      font-size: clamp(1.1rem, 4.5vw, 1.3rem);
+    }
+    .dash__status {
+      padding: 8px 16px;
+      font-size: clamp(0.85rem, 3.5vw, 1rem);
+      text-align: center;
+      color: var(--m-text-muted);
+      min-height: 32px;
+      line-height: 1.4;
+    }
+    .dash__status.err { color: #8b3a3a; }
+    .dash__status.ok  { color: #2d6a30; }
+
+    /* Tab panel area — one active tab visible at a time. Each tab
+     * owns its own scroll container; switching tabs returns the
+     * previous one to its scroll position naturally because we don't
+     * unmount. */
+    .dash__panels { flex: 1; position: relative; }
+    .panel {
+      position: absolute; inset: 0;
+      padding: 12px 16px 24px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: none;
+    }
+    .panel.active { display: block; }
+
+    /* ═════════ BOTTOM TAB BAR ═════════ */
+    .nav {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      background: var(--m-bg-raised);
+      border-top: 1px solid var(--m-hairline);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    }
+    .nav__btn {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 2px;
+      padding: 10px 6px;
+      min-height: 68px;
+      background: transparent;
+      border: 0;
+      color: var(--m-text-muted);
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      font-size: clamp(0.7rem, 3vw, 0.85rem);
+      cursor: pointer;
+      position: relative;
+      transition: color 120ms ease;
+    }
+    .nav__btn__icon {
+      font-size: 22px; line-height: 1;
+      font-family: var(--m-font-display, var(--m-font-fallback));
+    }
+    .nav__btn--active {
+      color: var(--m-accent-bright);
+      font-weight: 700;
+    }
+    .nav__btn--active::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 20%; right: 20%;
+      height: 3px;
+      background: var(--m-accent);
+      border-radius: 0 0 3px 3px;
+    }
+    .nav__btn:active { background: rgba(156, 111, 42, 0.08); }
+
+    /* ═════════ SHARED CARD PRIMITIVE ═════════ */
+    .card {
+      background: var(--m-bg-surface);
+      border: 1px solid var(--m-hairline-faint);
+      border-radius: 14px;
+      padding: clamp(16px, 4vw, 22px);
+      margin-bottom: 14px;
+      box-shadow: var(--m-shadow-card);
+    }
+    .card__title {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1rem, 4.3vw, 1.2rem);
+      color: var(--m-accent-bright);
+      margin: 0 0 12px;
+    }
+    .card__eyebrow {
+      font-size: clamp(0.7rem, 3vw, 0.85rem);
+      color: var(--m-text-muted);
+      letter-spacing: 0.2em; text-transform: uppercase;
+      margin: 0 0 8px;
+    }
+
+    /* ═════════ HOME TAB ═════════ */
+    .hero {
+      position: relative; overflow: hidden;
+      padding: clamp(20px, 6vw, 32px) clamp(18px, 5vw, 24px);
+      background: var(--m-bg-surface);
+      border: 1px solid var(--m-hairline);
+      border-radius: 14px;
+      box-shadow: var(--m-shadow-card);
+      margin-bottom: 14px;
+    }
+    .hero__bg { position: absolute; inset: 0; background: var(--m-mihrab-glow); pointer-events: none; }
+    .hero__label {
+      position: relative;
+      font-size: clamp(0.8rem, 3.3vw, 0.95rem);
+      color: var(--m-text-muted);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .hero__row {
+      position: relative;
+      display: flex; align-items: baseline; justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .hero__name {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.75rem, 9vw, 3rem);
+      color: var(--m-accent-bright); font-weight: 700; line-height: 1;
+    }
+    .hero__time {
+      font-family: var(--m-font-numeral, var(--m-font-fallback));
+      font-size: clamp(2.25rem, 12vw, 3.5rem);
+      color: var(--m-accent); line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .hero__cd {
+      position: relative;
+      font-size: clamp(0.95rem, 4vw, 1.1rem);
+      color: var(--m-text-primary);
+      margin-top: 14px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+    }
+
+    .prayers { display: flex; flex-direction: column; }
+    .prayers__row {
+      display: grid; grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 14px 4px;
+      border-bottom: 1px solid var(--m-hairline-faint);
+    }
+    .prayers__row:last-child { border-bottom: 0; }
+    .prayers__row.next {
+      background: rgba(226, 183, 106, 0.14);
+      border-radius: 8px;
+      margin: 2px 0;
+      padding-inline-start: 12px;
+      padding-inline-end: 12px;
+    }
+    .prayers__name {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.05rem, 4.4vw, 1.35rem);
+    }
+    .prayers__time {
+      font-family: var(--m-font-numeral, var(--m-font-fallback));
+      font-size: clamp(1.3rem, 5.5vw, 1.6rem);
+      color: var(--m-text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+    .prayers__row.next .prayers__time { color: var(--m-accent); }
+
+    .event {
+      padding: 14px 18px;
+      background: rgba(226, 183, 106, 0.10);
+      border: 1px solid var(--m-hairline);
+      border-radius: 12px;
+      margin-bottom: 14px;
+    }
+    .event__kind {
+      font-size: clamp(0.75rem, 3.2vw, 0.9rem);
+      color: var(--m-accent);
+      letter-spacing: 0.15em; text-transform: uppercase;
+    }
+    .event__title {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1.1rem, 4.5vw, 1.3rem);
+      color: var(--m-text-primary);
+      margin-top: 6px;
+    }
+
+    /* ═════════ CONTROLS TAB ═════════ */
+    .ctrl-grid { display: grid; gap: 12px; }
+    .ctrl-grid--wide {
+      /* Two-column on wide screens (tablet / landscape phone) for
+       * denser controls; single column on phones. */
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 720px) { .ctrl-grid--wide { grid-template-columns: 1fr 1fr; } }
+    .ctrl-btn-row {
+      display: grid; gap: 8px;
+      grid-auto-flow: column; grid-auto-columns: 1fr;
+      margin-top: 10px;
+    }
+    .ctrl-btn-row--stack { grid-auto-flow: row; }
+    @media (max-width: 340px) {
+      .ctrl-btn-row { grid-auto-flow: row; grid-template-columns: 1fr 1fr; grid-auto-columns: unset; }
+    }
+    .ctrl-btn {
+      min-height: 52px;
+      padding: 12px;
+      background: var(--m-bg-inset);
+      color: var(--m-text-primary);
+      border: 1px solid var(--m-hairline);
+      border-radius: 10px;
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      cursor: pointer;
+      white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+      transition: background 120ms ease, transform 80ms ease, border-color 120ms ease;
+    }
+    .ctrl-btn:active { transform: scale(0.97); background: rgba(156,111,42,0.18); }
+    .ctrl-btn--primary {
+      background: var(--m-accent); color: #fbf5e3; border-color: var(--m-accent);
+      font-weight: 700;
+    }
+    .ctrl-btn--primary:active { background: var(--m-accent-bright, var(--m-accent)); }
+    .ctrl-btn--danger {
+      background: rgba(178, 86, 86, 0.12);
+      border-color: rgba(178, 86, 86, 0.5);
+      color: #a84040;
+    }
+    .ctrl-btn--danger:active { background: rgba(178, 86, 86, 0.22); }
+    .ctrl-btn--big {
+      min-height: 72px;
+      font-size: clamp(1.05rem, 4.5vw, 1.2rem);
+    }
+    .ctrl-rakah-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .ctrl-rakah-row__label {
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      color: var(--m-text-muted);
+      margin-inline-end: 4px;
+    }
+    .ctrl-rakah-btn {
+      flex: 1 1 0; min-width: 60px; min-height: 48px;
+      background: var(--m-bg-inset);
+      border: 1px solid var(--m-hairline);
+      color: var(--m-text-primary);
+      font-family: var(--m-font-numeral, var(--m-font-fallback));
+      font-size: clamp(1.1rem, 5vw, 1.3rem);
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    .ctrl-rakah-btn:active { background: rgba(156, 111, 42, 0.18); transform: scale(0.97); }
+
+    /* ═════════ LIBRARY TAB ═════════ */
+    .lib__tabs {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 6px; margin-bottom: 14px;
+    }
+    .lib__tab {
+      min-height: 44px; padding: 10px;
+      background: transparent;
+      border: 1px solid var(--m-hairline);
+      color: var(--m-text-muted);
+      border-radius: 10px;
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      cursor: pointer;
+    }
+    .lib__tab--active {
+      background: var(--m-accent);
+      border-color: var(--m-accent);
+      color: #fbf5e3;
+      font-weight: 700;
+    }
+    .lib__search {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--m-bg-inset);
+      border: 1px solid var(--m-hairline);
+      border-radius: 10px;
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      font-size: 16px; /* ≥ 16px prevents iOS auto-zoom */
+      margin-bottom: 12px;
+      min-height: 48px;
+    }
+    .lib__count {
+      font-size: clamp(0.75rem, 3vw, 0.85rem);
+      color: var(--m-text-muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+      min-height: 1.2rem;
+    }
+    .lib__list { display: flex; flex-direction: column; gap: 8px; }
+    .lib__item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; min-height: 64px;
+      background: var(--m-bg-surface);
+      border: 1px solid var(--m-hairline-faint);
+      border-radius: 12px;
+      cursor: pointer;
+      text-align: start;
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      color: var(--m-text-primary);
+      transition: background 120ms ease, transform 80ms ease;
+    }
+    .lib__item:active { background: rgba(156, 111, 42, 0.10); transform: scale(0.99); }
+    .lib__item-body { flex: 1; min-width: 0; }
+    .lib__item-title {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1rem, 4.2vw, 1.15rem);
+      color: var(--m-accent-bright);
+      line-height: 1.3;
+    }
+    .lib__item-sub {
+      font-size: clamp(0.8rem, 3.3vw, 0.9rem);
+      color: var(--m-text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+      display: -webkit-box; -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .lib__item-arrow { color: var(--m-text-muted); font-size: 18px; flex: 0 0 auto; }
+    .lib__empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--m-text-muted);
+      font-size: clamp(0.95rem, 4vw, 1.1rem);
+    }
+
+    /* ═════════ SETTINGS TAB ═════════ */
+    .set-row {
+      display: flex; flex-direction: column;
+      gap: 6px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--m-hairline-faint);
+    }
+    .set-row:last-child { border-bottom: 0; }
+    .set-row__label {
+      font-size: clamp(0.85rem, 3.5vw, 0.95rem);
+      color: var(--m-text-muted);
+      letter-spacing: 0.08em;
+    }
+    .set-row__value {
+      font-family: var(--m-font-display, var(--m-font-fallback));
+      font-size: clamp(1rem, 4.2vw, 1.15rem);
+      color: var(--m-text-primary);
+      word-break: break-word;
+    }
+    .set-row__value--pin {
+      font-family: var(--m-font-numeral, var(--m-font-fallback));
+      font-size: clamp(1.6rem, 7vw, 2.2rem);
+      color: var(--m-accent);
+      letter-spacing: 0.2em;
+      -webkit-user-select: text; user-select: text;
+    }
+    /* Tap-to-reveal PIN — stays masked in a glance-unsafe venue.
+     * data-revealed="true" flips to plain digits + selectable text. */
+    .set-row__pin-btn {
+      display: inline-block;
+      padding: 10px 14px;
+      background: transparent;
+      border: 1px dashed var(--m-hairline-bright);
+      border-radius: 10px;
+      cursor: pointer;
+      min-height: 48px;
+      text-align: center;
+      /* Default state — prompt text, smaller font so it reads as a
+       * call-to-action rather than a displayed value. */
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      font-size: clamp(0.9rem, 3.8vw, 1rem);
+      letter-spacing: 0;
+      color: var(--m-text-secondary);
+    }
+    .set-row__pin-btn[data-revealed="true"] {
+      border-style: solid;
+      border-color: var(--m-hairline-bright);
+      background: rgba(226, 183, 106, 0.06);
+      color: var(--m-accent);
+      font-family: var(--m-font-mono, ui-monospace, monospace);
+      font-size: clamp(1.8rem, 8vw, 2.4rem);
+      letter-spacing: 0.18em;
+      /* Latin digits — force LTR so "12345" reads correctly regardless
+       * of the surrounding Arabic page direction. */
+      direction: ltr;
+      unicode-bidi: isolate;
+    }
+
+    .set-input {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--m-bg-inset);
+      border: 1px solid var(--m-hairline);
+      border-radius: 10px;
+      color: var(--m-text-primary);
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      font-size: 16px;
+      min-height: 48px;
+    }
+    .set-input--area {
+      min-height: 88px;
+      font-family: var(--m-font-body, var(--m-font-fallback));
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    /* Toast — inline below action buttons. */
+    .ctrl-toast {
+      margin-top: 10px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: rgba(226, 183, 106, 0.12);
+      border: 1px solid var(--m-hairline-faint);
+      color: var(--m-accent-bright);
+      font-size: clamp(0.85rem, 3.5vw, 0.95rem);
+      text-align: center;
+      min-height: 40px;
+      line-height: 1.4;
+      opacity: 0;
+      transition: opacity 200ms ease;
+    }
+    .ctrl-toast.show { opacity: 1; }
+    .ctrl-toast.err {
+      background: rgba(178, 86, 86, 0.14);
+      border-color: rgba(178, 86, 86, 0.4);
+      color: #a84040;
+    }
+    .ctrl-toast.ok {
+      background: rgba(45, 106, 48, 0.12);
+      border-color: rgba(45, 106, 48, 0.4);
+      color: #2d6a30;
+    }
+
+    /* Hide scrollbars visual-only; keep scroll functional. */
+    * { scrollbar-width: none; -ms-overflow-style: none; }
+    *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+    /* Spinner used during IPC waits. */
+    .spinner {
+      display: inline-block;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(156, 111, 42, 0.25);
+      border-top-color: var(--m-accent);
+      border-radius: 50%;
+      animation: spin 800ms linear infinite;
+      vertical-align: middle;
+      margin-inline-end: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <!-- ═════════ Auth ═════════ -->
+  <div id="auth-screen" class="auth" role="main">
+    <header class="auth__brand">
+      <div class="auth__glyph" aria-hidden="true">م</div>
+      <div class="auth__wordmark">مئذنة</div>
+    </header>
+    <form id="auth-form" class="auth__card" novalidate>
+      <h1 class="auth__title">التحكم من الجوال</h1>
+      <p class="auth__sub">أدخل رمز PIN المعروض في إعدادات الشاشة (F3 على الكمبيوتر)</p>
+      <input id="pin-input" type="password" inputmode="numeric" autocomplete="one-time-code"
+             pattern="[0-9]{4,8}" maxlength="8" placeholder="••••••" aria-label="رمز PIN" required />
+      <button id="auth-submit" type="submit">دخول</button>
+      <div id="auth-status" role="status" aria-live="polite"></div>
+      <div class="auth__hint">اتصال آمن عبر الشبكة المحلية للمسجد</div>
+    </form>
+  </div>
+
+  <!-- ═════════ Dashboard ═════════ -->
+  <div id="dashboard" class="dash hidden">
+    <header class="dash__head">
+      <div class="dash__brand">
+        <div class="dash__brand-glyph" aria-hidden="true">م</div>
+        <div id="brand-mosque-name" class="dash__brand-name">مئذنة</div>
+      </div>
+      <div class="dash__actions">
+        <button id="btn-refresh" class="dash__btn dash__btn--icon" type="button" aria-label="تحديث">⟳</button>
+        <button id="btn-logout"  class="dash__btn" type="button">خروج</button>
+      </div>
+    </header>
+
+    <div id="dash-status-line" class="dash__status" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="dash__panels">
+      <!-- Home -->
+      <section id="panel-home" class="panel active" role="tabpanel" aria-labelledby="tab-home">
+        <div class="hero">
+          <div class="hero__bg" aria-hidden="true"></div>
+          <div class="hero__label">الصلاة القادمة</div>
+          <div class="hero__row">
+            <div id="next-name" class="hero__name">—</div>
+            <div id="next-time" class="hero__time">—</div>
+          </div>
+          <div id="next-countdown" class="hero__cd">—</div>
+        </div>
+
+        <div id="today-event" class="event hidden">
+          <div id="today-event-kind" class="event__kind"></div>
+          <div id="today-event-title" class="event__title"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">التاريخ الهجري</h2>
+          <div id="hijri-date" style="font-family: var(--m-font-display, var(--m-font-fallback)); font-size: clamp(1.1rem, 4.5vw, 1.3rem); color: var(--m-accent);">—</div>
+          <div id="event-inline" style="color: var(--m-text-muted); font-size: clamp(0.85rem, 3.5vw, 1rem); margin-top: 6px;"></div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">مواعيد اليوم</h2>
+          <div id="prayer-list" class="prayers"></div>
+        </div>
+      </section>
+
+      <!-- Controls -->
+      <section id="panel-ctrl" class="panel" role="tabpanel" aria-labelledby="tab-ctrl">
+        <div class="card">
+          <p class="card__eyebrow">متابعة الصلاة</p>
+          <h2 class="card__title">تحكم بشاشة F5</h2>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn ctrl-btn--primary ctrl-btn--big" data-tracker="open">فتح</button>
+            <button class="ctrl-btn" data-tracker="close">إغلاق</button>
+          </div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn" data-tracker="prev">← السابق</button>
+            <button class="ctrl-btn ctrl-btn--primary" data-tracker="next">التالي →</button>
+            <button class="ctrl-btn" data-tracker="reset">إعادة</button>
+          </div>
+          <div class="ctrl-rakah-row">
+            <span class="ctrl-rakah-row__label">عدد الركعات:</span>
+            <button class="ctrl-rakah-btn" data-rakahs="2" aria-label="ضبط ركعتين وفتح التتبّع">٢</button>
+            <button class="ctrl-rakah-btn" data-rakahs="3" aria-label="ضبط ثلاث ركعات وفتح التتبّع">٣</button>
+            <button class="ctrl-rakah-btn" data-rakahs="4" aria-label="ضبط أربع ركعات وفتح التتبّع">٤</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <p class="card__eyebrow">عرض الأدعية</p>
+          <h2 class="card__title">تحكم بالشريحة</h2>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn" data-slide="PREV">← السابق</button>
+            <button class="ctrl-btn ctrl-btn--primary" data-slide="NEXT">التالي →</button>
+          </div>
+          <div class="ctrl-btn-row">
+            <button class="ctrl-btn" data-slide="BLANK">شاشة سوداء</button>
+            <button class="ctrl-btn ctrl-btn--danger" data-slide="CLOSE">إنهاء العرض</button>
+          </div>
+        </div>
+
+        <div id="ctrl-toast" class="ctrl-toast" role="status" aria-live="polite"></div>
+      </section>
+
+      <!-- Library -->
+      <section id="panel-lib" class="panel" role="tabpanel" aria-labelledby="tab-lib">
+        <!-- Category filter pills. These are segmented buttons, not
+             tabs in the ARIA sense (no matching panels), so we use
+             role="group" + aria-pressed on each button. Keeps screen
+             readers honest without breaking the visual. -->
+        <div class="lib__tabs" role="group" aria-label="تصنيف المحتوى">
+          <button class="lib__tab lib__tab--active" aria-pressed="true" data-libtab="dua">الأدعية</button>
+          <button class="lib__tab" aria-pressed="false" data-libtab="ziyarah">الزيارات</button>
+          <button class="lib__tab" aria-pressed="false" data-libtab="taqib">التعقيبات</button>
+        </div>
+        <input id="lib-search" class="lib__search" type="search" placeholder="ابحث..." aria-label="بحث في المكتبة" />
+        <div id="lib-count" class="lib__count" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="lib-list" class="lib__list"></div>
+        <div id="lib-empty" class="lib__empty hidden">لا توجد نتائج</div>
+      </section>
+
+      <!-- Settings (read-only + a few phone-friendly inputs) -->
+      <section id="panel-set" class="panel" role="tabpanel" aria-labelledby="tab-set">
+        <div class="card">
+          <h2 class="card__title">تحديد الموقع من الجوال</h2>
+          <p style="color: var(--m-text-muted); font-size: clamp(0.85rem, 3.5vw, 1rem); line-height: 1.7; margin: 0 0 14px;">
+            يعطي هذا الزرّ الشاشة موقعك الحالي بدقّة أعلى من GPS الكمبيوتر — اسمح للمتصفّح بالموقع عند السؤال.
+          </p>
+          <button id="btn-gps" class="ctrl-btn ctrl-btn--primary ctrl-btn--big" type="button">📍 إرسال موقعي الحالي</button>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">شريط الإعلان</h2>
+          <p style="color: var(--m-text-muted); font-size: clamp(0.85rem, 3.5vw, 1rem); margin: 0 0 10px;">النصّ الذي يمرّ أعلى الشاشة. أفرغ الحقل لإخفائه.</p>
+          <textarea id="set-announcement" class="set-input set-input--area" maxlength="240" placeholder="مثال: صلاة الجماعة اليوم بعد المغرب بعشر دقائق"></textarea>
+          <div class="ctrl-btn-row" style="margin-top: 10px;">
+            <button id="btn-save-announce" class="ctrl-btn ctrl-btn--primary" type="button">حفظ النصّ</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card__title">معلومات الاتصال</h2>
+          <div class="set-row">
+            <span class="set-row__label">رمز PIN</span>
+            <button id="set-pin" type="button" class="set-row__value set-row__value--pin set-row__pin-btn"
+                    aria-label="اضغط لعرض رمز PIN" data-revealed="false">اضغط للعرض</button>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">رابط الجوال</span>
+            <span id="set-url" class="set-row__value" style="direction: ltr; text-align: start; font-family: var(--m-font-mono, ui-monospace, monospace); font-size: clamp(0.85rem, 3.5vw, 1rem);">—</span>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">اسم المسجد</span>
+            <span id="set-mosque" class="set-row__value">—</span>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">اسم الإمام</span>
+            <span id="set-imam" class="set-row__value">—</span>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">الموقع</span>
+            <span id="set-loc" class="set-row__value">—</span>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">طريقة الحساب</span>
+            <span id="set-method" class="set-row__value">—</span>
+          </div>
+          <div class="set-row">
+            <span class="set-row__label">التقويم</span>
+            <span id="set-calendar" class="set-row__value">—</span>
+          </div>
+        </div>
+
+        <div id="ctrl-toast-set" class="ctrl-toast" role="status" aria-live="polite"></div>
+      </section>
+    </div>
+
+    <!-- Bottom tab bar -->
+    <nav class="nav" role="tablist" aria-label="التنقّل الرئيسي">
+      <button class="nav__btn nav__btn--active" id="tab-home" role="tab" aria-selected="true" aria-controls="panel-home" data-tab="home">
+        <span class="nav__btn__icon" aria-hidden="true">⌂</span>
+        <span>الرئيسية</span>
+      </button>
+      <button class="nav__btn" id="tab-ctrl" role="tab" aria-selected="false" aria-controls="panel-ctrl" data-tab="ctrl">
+        <span class="nav__btn__icon" aria-hidden="true">☪</span>
+        <span>التحكم</span>
+      </button>
+      <button class="nav__btn" id="tab-lib" role="tab" aria-selected="false" aria-controls="panel-lib" data-tab="lib">
+        <span class="nav__btn__icon" aria-hidden="true">❋</span>
+        <span>المكتبة</span>
+      </button>
+      <button class="nav__btn" id="tab-set" role="tab" aria-selected="false" aria-controls="panel-set" data-tab="set">
+        <span class="nav__btn__icon" aria-hidden="true">⚙</span>
+        <span>الإعدادات</span>
+      </button>
+    </nav>
+  </div>
+
+  <script src="/mobile-control.js"></script>
+  <!-- /vendor/mithnah-gps.js REMOVED in 0.8.31 — the new SPA handles
+       GPS inline in the Settings tab (#btn-gps). The legacy vendor
+       script injected a floating FAB that would collide with the
+       bottom tab bar and duplicate the GPS handler. -->
+</body>
+</html>

@@ -1,0 +1,247 @@
+/* ============================================================
+   Mithnah — Design Tokens · v2
+   Shia Ithna Ashari mosque display.
+   Palette: deep "Karbala dome" green + "Najaf gold" + Kashan
+   turquoise. Lighter than v1 — restful for long viewing.
+   ============================================================ */
+
+:root {
+  /* ─────────────────────────────────────────────
+     DARK THEME — wall default · harmonized palette
+     All occasion backgrounds share the same L/C range — only hue shifts.
+     L ≈ 0.23  ·  C ≈ 0.035  ·  hue varies
+     ───────────────────────────────────────────── */
+
+  /* Backgrounds — deep teal (normal day baseline) */
+  --m-bg-base:        oklch(0.24 0.035 180);   /* deep teal */
+  --m-bg-base-alt:    oklch(0.27 0.038 180);
+  --m-bg-surface:     oklch(0.30 0.036 180);
+  --m-bg-raised:      oklch(0.34 0.034 180);
+  --m-bg-inset:       oklch(0.20 0.033 180);
+
+  /* Text — warm ivory, no pure white. The muted/faint values used to
+   * be #9aa39a / #5d6a64 which gave contrast ratios of 2.8:1 and
+   * 1.9:1 against the teal base — both fail WCAG AA and the faint
+   * tint was illegible from across the mosque hall. Lifted to
+   * #b8c2b8 (~5.6:1) and #8a948e (~3.4:1, which passes AA for the
+   * 18pt+ slideshow-hint sizes where this token actually shows). */
+  --m-text-primary:   #f5ecd2;   /* manuscript ivory */
+  --m-text-secondary: #d6cdb2;
+  --m-text-muted:     #b8c2b8;
+  --m-text-faint:     #8a948e;
+
+  /* Brand — turquoise pool & Najaf gold */
+  --m-primary:        #4ec1b6;   /* Kashan turquoise */
+  --m-primary-dim:    #2d8a82;
+  --m-primary-deep:   #195851;
+
+  --m-accent:         #e2b76a;   /* Najaf shrine gold */
+  --m-accent-bright:  #f0cf8c;   /* lit gold */
+  --m-accent-deep:    #b48948;   /* aged gold */
+  --m-accent-glow:    rgba(226,183,106,0.22);
+
+  /* Cobalt & turquoise — Persian tile */
+  --m-cobalt:         #2d4f88;
+  --m-turquoise:      #4ec1b6;
+
+  /* Occasion tints — restrained, reverent */
+  --m-shahadah:       #8c2c2c;   /* deep Karbala burgundy */
+  --m-shahadah-glow:  rgba(140,44,44,0.28);
+  --m-shahadah-text:  #d49595;
+
+  --m-wiladah:        #d4a04a;   /* warm celebration gold */
+  --m-wiladah-glow:   rgba(212,160,74,0.28);
+  --m-wiladah-text:   #f0cf8c;
+
+  --m-eid:            #5fa872;   /* fresh emerald */
+  --m-eid-glow:       rgba(95,168,114,0.28);
+  --m-eid-text:       #a3d4b0;
+
+  /* Hairlines — gold filigree */
+  --m-hairline:       rgba(226,183,106,0.32);
+  --m-hairline-bright:rgba(226,183,106,0.60);
+  --m-hairline-faint: rgba(226,183,106,0.16);
+  --m-divider:        rgba(245,236,210,0.10);
+
+  /* Mihrab halo — radial glow behind clock */
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(226,183,106,0.28) 0%,
+    rgba(226,183,106,0.14) 30%,
+    rgba(78,193,182,0.06) 55%,
+    transparent 78%
+  );
+
+  /* Salawat watermark glow */
+  --m-salawat-glow: rgba(226,183,106,0.50);
+
+  /* Spacing scale */
+  --m-space-1: 4px;   --m-space-2: 8px;   --m-space-3: 12px;
+  --m-space-4: 16px;  --m-space-5: 24px;  --m-space-6: 32px;
+  --m-space-7: 48px;  --m-space-8: 64px;  --m-space-9: 96px;
+
+  /* Radii */
+  --m-radius-xs: 4px; --m-radius-sm: 8px; --m-radius-md: 12px;
+  --m-radius-lg: 18px; --m-radius-xl: 24px; --m-radius-full: 999px;
+
+  /* Shadows */
+  --m-shadow-card: 0 1px 0 rgba(226,183,106,0.06) inset,
+                   0 8px 32px rgba(0,0,0,0.30);
+  --m-shadow-glow: 0 0 60px var(--m-accent-glow);
+  --m-shadow-deep: 0 24px 80px rgba(0,0,0,0.45);
+
+  /* Typography */
+  --m-font-body:     'Tajawal', 'Cairo', 'Noto Sans Arabic', system-ui, sans-serif;
+  --m-font-display:  'Aref Ruqaa', 'Amiri', serif;
+  --m-font-quranic:  'Scheherazade New', 'Amiri', serif;
+  --m-font-numeral:  'Aref Ruqaa', 'Amiri', serif;
+  --m-font-kufi:     'Reem Kufi', 'Aref Ruqaa', serif;
+  --m-font-latin:    'Inter', system-ui, sans-serif;
+  --m-font-mono:     'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ─────────────────────────────────────────────
+   LIGHT THEME — phone default
+   "ورق المخطوط · الفيروز · الذهب الداكن"
+   ───────────────────────────────────────────── */
+[data-theme="light"] {
+  --m-bg-base:        #f4ecd6;   /* aged manuscript */
+  --m-bg-base-alt:    #efe4c8;
+  --m-bg-surface:     #fbf5e3;
+  --m-bg-raised:      #ffffff;
+  --m-bg-inset:       #ebe1c4;
+
+  --m-text-primary:   #1a3530;
+  --m-text-secondary: #355048;
+  --m-text-muted:     #6e7c75;
+  --m-text-faint:     #a59c82;
+
+  --m-primary:        #2d8a82;
+  --m-primary-dim:    #4ec1b6;
+  --m-primary-deep:   #143f3b;
+
+  --m-accent:         #9c6f2a;
+  --m-accent-bright:  #b88a40;
+  --m-accent-deep:    #6e4a1a;
+  --m-accent-glow:    rgba(156,111,42,0.16);
+
+  --m-shahadah:       #6e2222;
+  --m-shahadah-text:  #6e2222;
+  --m-wiladah:        #9c6f2a;
+  --m-wiladah-text:   #9c6f2a;
+  --m-eid:            #2f6e3d;
+  --m-eid-text:       #2f6e3d;
+
+  --m-hairline:       rgba(156,111,42,0.34);
+  --m-hairline-bright:rgba(156,111,42,0.60);
+  --m-hairline-faint: rgba(156,111,42,0.16);
+  --m-divider:        rgba(26,53,48,0.10);
+
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(156,111,42,0.18) 0%,
+    rgba(156,111,42,0.08) 35%,
+    transparent 75%
+  );
+
+  --m-shadow-card: 0 1px 2px rgba(26,53,48,0.06),
+                   0 8px 24px rgba(26,53,48,0.08);
+}
+
+/* ─────────────────────────────────────────────
+   Occasion modifiers — harmonized
+   All share L≈0.23, C≈0.035. Only the hue angle
+   shifts, so every colorway reads as the same
+   family — just a different "temperature."
+   ───────────────────────────────────────────── */
+
+[data-occasion="normal"] {
+  /* Normal — brass lantern gold accent */
+  --m-bg-base:        oklch(0.24 0.035 180);
+  --m-bg-base-alt:    oklch(0.27 0.038 180);
+  --m-bg-inset:       oklch(0.20 0.033 180);
+  --m-accent:         #d4a574;
+  --m-accent-bright:  #e6bc8e;
+  --m-accent-glow:    rgba(212,165,116,0.22);
+  --m-hairline:       rgba(212,165,116,0.32);
+  --m-hairline-bright:rgba(212,165,116,0.60);
+  --m-hairline-faint: rgba(212,165,116,0.16);
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(212,165,116,0.22) 0%,
+    rgba(212,165,116,0.10) 35%,
+    transparent 75%
+  );
+  --m-salawat-glow: rgba(212,165,116,0.85);
+}
+
+[data-occasion="shahadah"] {
+  /* Shahadah — dignified garnet */
+  --m-bg-base:        oklch(0.24 0.045 20);
+  --m-bg-base-alt:    oklch(0.27 0.050 20);
+  --m-bg-inset:       oklch(0.20 0.040 20);
+  --m-accent:         #b25656;
+  --m-accent-bright:  #c77474;
+  --m-accent-glow:    rgba(178,86,86,0.22);
+  --m-hairline:       rgba(178,86,86,0.32);
+  --m-hairline-bright:rgba(178,86,86,0.60);
+  --m-hairline-faint: rgba(178,86,86,0.16);
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(178,86,86,0.22) 0%,
+    rgba(178,86,86,0.10) 35%,
+    transparent 75%
+  );
+  --m-salawat-glow: rgba(178,86,86,0.85);
+}
+
+[data-occasion="wiladah"] {
+  /* Wiladah — joyful Ahl al-Bayt emerald green.
+     High lightness (0.80) + high chroma (0.18) + hue 150 =
+     luminous warm-emerald; evokes joy, mawlid banners,
+     the green of prophetic lineage. Pairs against the
+     muted olive-gold background to feel like fresh life
+     emerging from warm earth. */
+  --m-bg-base:        oklch(0.24 0.040 85);
+  --m-bg-base-alt:    oklch(0.27 0.045 85);
+  --m-bg-inset:       oklch(0.20 0.036 85);
+  --m-accent:         #3dd47a;
+  --m-accent-bright:  #6ee39c;
+  --m-accent-glow:    rgba(61,212,122,0.32);
+  --m-hairline:       rgba(61,212,122,0.40);
+  --m-hairline-bright:rgba(61,212,122,0.68);
+  --m-hairline-faint: rgba(61,212,122,0.18);
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(61,212,122,0.30) 0%,
+    rgba(61,212,122,0.14) 35%,
+    transparent 75%
+  );
+  --m-salawat-glow: rgba(61,212,122,0.90);
+}
+
+[data-occasion="eid"] {
+  /* Eid — saffron amber */
+  --m-bg-base:        oklch(0.24 0.045 155);
+  --m-bg-base-alt:    oklch(0.27 0.050 155);
+  --m-bg-inset:       oklch(0.20 0.040 155);
+  --m-accent:         #e6b84a;
+  --m-accent-bright:  #f0ca70;
+  --m-accent-glow:    rgba(230,184,74,0.22);
+  --m-hairline:       rgba(230,184,74,0.34);
+  --m-hairline-bright:rgba(230,184,74,0.60);
+  --m-hairline-faint: rgba(230,184,74,0.16);
+  --m-mihrab-glow: radial-gradient(
+    ellipse 65% 75% at 50% 55%,
+    rgba(230,184,74,0.22) 0%,
+    rgba(230,184,74,0.10) 35%,
+    transparent 75%
+  );
+  --m-salawat-glow: rgba(230,184,74,0.85);
+}
+
+/* Light-theme accent overrides per occasion — for the phone UI */
+[data-theme="light"][data-occasion="normal"]   { --m-accent: #a87a42; --m-accent-bright: #c4924e; }
+[data-theme="light"][data-occasion="shahadah"] { --m-accent: #8b3a3a; --m-accent-bright: #a24848; }
+[data-theme="light"][data-occasion="wiladah"]  { --m-accent: #1f9e4a; --m-accent-bright: #2eb85c; }
+[data-theme="light"][data-occasion="eid"]      { --m-accent: #b88a30; --m-accent-bright: #d3a243; }

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f1e20" />
+    <meta name="description" content="مئذنة — شاشة مسجد شيعي اثناعشري" />
+    <title>Mithnah · مئذنة</title>
+
+    <!-- Local vendor assets — NO external CDN, fully offline.
+         A post-build step (scripts/copy-vendor-to-dist.js) copies the
+         fonts and design CSS from build-output/vendor/ into
+         dist/renderer/vendor/ so these relative paths resolve at
+         runtime under file:// . -->
+    <!-- Preload the two Arabic font files the slideshow actually uses
+         (Scheherazade New regular-arabic for du'a text + Aref Ruqaa
+         regular-arabic for deck titles). Without preload, the fonts
+         load on first use which means the first du'a slide renders in
+         a serif fallback, then re-renders when Scheherazade arrives —
+         the metric shift looks like the text "jumping" as it settles.
+         With preload, the font is fetched at boot and the first slide
+         is rendered in the final typeface from the start. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="./vendor/fonts/3dc81dfe-4UaZrFhTvxVnHDvUkUiHg8jprP4DOwFmO24p.woff2" />
+    <!-- Aref Ruqaa Regular Arabic — used for masthead title, clock,
+         deck titles in the slideshow. Without preload these render in
+         a serif fallback on first paint, causing a visible re-layout
+         when the actual font loads. -->
+    <link rel="preload" as="font" type="font/truetype" crossorigin
+          href="./vendor/fonts/aref-ruqaa-400.ttf" />
+    <!-- Tajawal Regular Arabic — body text everywhere (location label,
+         help/settings overlays, hints). Largest visual impact of the
+         three since it covers the majority of UI chrome. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+          href="./vendor/fonts/935376bd-Iura6YBj_oCad4k1nzSBC45I.woff2" />
+    <link href="./vendor/google-tajawal.css" rel="stylesheet" />
+    <link href="./vendor/google-cairo.css" rel="stylesheet" />
+    <link href="./vendor/google-changa-naskh.css" rel="stylesheet" />
+    <link href="./vendor/google-amiri-scheherazade.css" rel="stylesheet" />
+    <link href="./vendor/google-aref-reem.css" rel="stylesheet" />
+    <link href="./vendor/google-material-symbols.css" rel="stylesheet" />
+    <link href="./vendor/google-be-vietnam-pro.css" rel="stylesheet" />
+    <link href="./vendor/font-awesome.css" rel="stylesheet" />
+    <link href="./vendor/mithnah-design.css" rel="stylesheet" data-mithnah-design />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.jsx"></script>
+  </body>
+</html>

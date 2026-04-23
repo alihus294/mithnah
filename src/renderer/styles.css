@@ -1,0 +1,3168 @@
+/* Mithnah wall styling — Shia Ithna Ashari mosque display.
+ * All values key off mithnah-design.css tokens; component geometry lives
+ * here so the Ornaments module stays pure SVG. */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  width: 100%; height: 100%;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    var(--m-bg-base-alt) 0%,
+    var(--m-bg-base) 65%,
+    var(--m-bg-inset) 100%);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  overflow: hidden;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'kern' 1;
+  /* Disable text selection app-wide. This is a wall-display kiosk —
+   * selectable text invites accidental drag-highlighting that
+   * obscures the prayer times. Inputs/textareas opt back in via the
+   * rule below so the operator can still type into F3 / search. */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+/* Hide every scrollbar in the app. This is a wall display — visible
+ * scrollbars break the mosque aesthetic and the operator never needs
+ * to drag one (the overlays are scrollable via mouse-wheel / touch).
+ * Applies to every scrolling container (overlays, search results,
+ * dua body, etc.) while keeping the element scrollable. */
+* {
+  scrollbar-width: none;         /* Firefox */
+  -ms-overflow-style: none;      /* IE/Edge legacy */
+}
+*::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+.app-root {
+  position: relative;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+ * Design tokens — single source of truth for the spacing scale, radius
+ * scale, and z-index layering used across every overlay and widget.
+ * Tokens live at :root so they cascade everywhere. The scales keep
+ * margins and rounded corners consistent: a new feature that picks
+ * arbitrary `border-radius: 7px` breaks the visual rhythm; using
+ * `var(--m-radius-md)` keeps it in lockstep with the rest of the UI.
+ * ────────────────────────────────────────────────────────────────── */
+:root {
+  /* Spacing scale — 4-point ladder used for every gap / padding /
+   * margin. Names are intentionally short (xs/sm/md/lg/xl/2xl/3xl). */
+  --m-space-xs: 4px;
+  --m-space-sm: 8px;
+  --m-space-md: 12px;
+  --m-space-lg: 16px;
+  --m-space-xl: 24px;
+  --m-space-2xl: 32px;
+  --m-space-3xl: 48px;
+
+  /* Radius scale — four tiers plus fully-rounded. Previously 8 distinct
+   * radii were scattered across the stylesheet (4/6/8/10/12/14/16/999);
+   * this scale replaces them. */
+  --m-radius-sm: 6px;
+  --m-radius-md: 10px;
+  --m-radius-lg: 14px;
+  --m-radius-full: 999px;
+
+  /* Z-index layering — explicit scale so any new overlay slots into the
+   * right place instead of guessing a magic number. Named, not numbered,
+   * in comments so a future maintainer sees intent.
+   *   critical-alert   110   (never-miss errors)
+   *   help-overlay     105   (F1 — manual / QR / PIN reference)
+   *   inline-modal     100   (PIN entry, custom coords, exit confirm)
+   *   prayer-tracker    96   (F5)
+   *   settings          95   (F3)
+   *   dua-picker        94   (F4)
+   *   slideshow         90
+   *   pin-badge         86
+   *   first-run-tour    82
+   *   undo-toast        75
+   *   floating-menu     70
+   *   dhikr             60  (legacy)
+   * Overlays that can share screen-space were deconflicted in this pass. */
+  --m-z-critical: 110;
+  --m-z-help: 105;
+  --m-z-inline-modal: 100;
+  --m-z-tracker: 96;
+  --m-z-settings: 95;
+  --m-z-dua-picker: 94;
+  --m-z-slideshow: 90;
+  --m-z-pin-badge: 86;
+  --m-z-onboarding: 84;
+  --m-z-tour: 82;
+  --m-z-toast: 75;
+  --m-z-menu: 70;
+
+  /* Motion scale — three tiers. `fast` for micro-interactions (hover,
+   * button press, focus ring), `standard` for most state transitions
+   * (overlays, tabs, summary shifts), and `slow` for complex or
+   * celebrated entries (slideshow slide-in, tour cards). The scale
+   * replaces ~8 ad-hoc durations scattered across the stylesheet so
+   * the whole UI moves to the same rhythm. */
+  --m-motion-fast: 150ms;
+  --m-motion-standard: 220ms;
+  --m-motion-slow: 320ms;
+  --m-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* Slide-to-slide transition within the slideshow body — pure fade, no
+ * vertical motion. Dignified for reading ayat and adiyah. */
+@keyframes slideEnter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ═════════════════════════════════ Dashboard ═════════════════════════════ */
+.dashboard {
+  position: relative;
+  width: 100%; height: 100%;
+  color: var(--m-text-primary);
+}
+
+.dashboard__frame {
+  position: absolute; inset: 32px;
+  border: 1px solid var(--m-hairline);
+  pointer-events: none;
+  z-index: 1;
+}
+.dashboard__frame--inner {
+  inset: 40px;
+  border-color: var(--m-hairline-faint);
+}
+
+.dashboard__corner {
+  position: absolute;
+  color: var(--m-accent);
+  z-index: 2;
+  pointer-events: none;
+}
+.dashboard__corner--tr { top: 26px; right: 26px; }
+.dashboard__corner--tl { top: 26px; left: 26px; }
+.dashboard__corner--br { bottom: 26px; right: 26px; }
+.dashboard__corner--bl { bottom: 26px; left: 26px; }
+
+.dashboard__grid {
+  position: absolute;
+  inset: 60px 90px 60px;
+  display: grid;
+  /* `minmax(0, 1fr)` (instead of plain `1fr`) so row 2 can ACTUALLY
+   * shrink when the auto rows take more than expected — without it,
+   * a tall event-strip + tall footer would push row 2's content out
+   * of its row and into row 3, which is exactly the "everything on
+   * top of each other" the operator saw on 0.8.17. */
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  row-gap: clamp(12px, 1.4vw, 24px);
+  z-index: 3;
+  transition: inset 220ms ease;
+}
+/* Push the grid below the announcement banner when it's active, so the
+ * masthead doesn't collide with the ~66px scrolling strip. Activated
+ * by the React layer via class `.dashboard--with-banner`. */
+.dashboard--with-banner .dashboard__grid {
+  inset: 84px 90px 60px;
+}
+
+/* ── ZONE 1 · header ─────────────────────────────────────────────────── */
+.dashboard__header {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; padding-top: 6px;
+}
+.masthead {
+  display: flex; align-items: center; gap: 22px;
+}
+.masthead__rule {
+  width: clamp(36px, 3vw, 60px); height: 1px;
+}
+.masthead__rule--start {
+  background: linear-gradient(90deg, transparent, var(--m-accent));
+}
+.masthead__rule--end {
+  background: linear-gradient(90deg, var(--m-accent), transparent);
+}
+.masthead__star { color: var(--m-accent); line-height: 0; }
+.masthead__title {
+  font-family: var(--m-font-display);
+  font-size: clamp(22px, 1.9vw, 36px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, var(--m-accent-bright) 0%, var(--m-accent) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  white-space: nowrap;
+}
+
+.dashboard__dates {
+  display: flex; align-items: baseline; gap: 20px;
+}
+.dashboard__hijri {
+  font-family: var(--m-font-quranic);
+  font-size: clamp(22px, 2.1vw, 42px);
+  color: var(--m-accent);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.dashboard__dates-dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--m-text-muted); opacity: 0.6;
+  align-self: center;
+}
+.dashboard__greg {
+  font-family: var(--m-font-body);
+  font-size: clamp(16px, 1.15vw, 24px);
+  color: var(--m-text-muted);
+  letter-spacing: 0.04em;
+}
+
+/* ── ZONE 2 · clock + mihrab + next ──────────────────────────────────── */
+.dashboard__clock-zone {
+  position: relative;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 0;
+  /* Clip overflow so a very tall clock + next-prayer block on a
+   * short window doesn't BLEED into the event strip below. The
+   * mihrab silhouette is also inside this zone but is positioned
+   * absolute with negative top, so it can still extend up into the
+   * header row visually. */
+  overflow: hidden;
+  /* Burn-in protection — the clock + next-prayer block drift together
+   * as a unit on a 5-min cycle (amplitude ±8px). Mosque displays run
+   * 24/7 with the same digits in the same pixels; without this the
+   * LCD/phosphor can ghost the numbers into the panel. Moving the
+   * parent zone (not just the clock) keeps the two elements visually
+   * locked together instead of one drifting away from the other. */
+  animation: clock-burn-in-drift 300s ease-in-out infinite;
+  will-change: transform;
+}
+.dashboard__mihrab-halo {
+  position: absolute;
+  inset: -20px 0 0 0;
+  background: var(--m-mihrab-glow);
+  pointer-events: none;
+}
+.dashboard__mihrab {
+  position: absolute;
+  top: -10px;
+  left: 50%; transform: translateX(-50%);
+  width: clamp(520px, 42vw, 860px);
+  height: clamp(360px, 30vw, 600px);
+  color: var(--m-accent);
+  pointer-events: none;
+}
+
+.clock {
+  font-family: var(--m-font-numeral);
+  /* Upper bound trimmed from 320 → 280 so the clock doesn't starve
+   * the next-prayer block underneath on 1080p screens. Lower bound
+   * unchanged. */
+  font-size: clamp(160px, 14.8vw, 280px);
+  line-height: 0.95;
+  font-weight: 400;
+  color: var(--m-text-primary);
+  letter-spacing: -0.01em;
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 0 80px var(--m-accent-glow);
+  margin-bottom: 6px;
+  font-feature-settings: 'tnum' 1;
+}
+@keyframes clock-burn-in-drift {
+  0%, 100% { transform: translate(0, 0); }
+  25%      { transform: translate(6px, -4px); }
+  50%      { transform: translate(-8px, 4px); }
+  75%      { transform: translate(4px, -2px); }
+}
+
+.next {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.next__label-row {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 6px;
+  color: var(--m-accent);
+}
+.next__rule {
+  width: 50px; height: 1px;
+}
+.next__rule--start {
+  background: linear-gradient(90deg, transparent, var(--m-hairline-bright));
+}
+.next__rule--end {
+  background: linear-gradient(90deg, var(--m-hairline-bright), transparent);
+}
+.next__label {
+  font-family: var(--m-font-body);
+  font-size: clamp(14px, 1.1vw, 22px);
+  letter-spacing: 0.18em; text-transform: uppercase;
+}
+.next__pair {
+  display: flex; align-items: baseline; gap: 28px;
+}
+.next__name {
+  font-family: var(--m-font-display);
+  font-size: clamp(38px, 3.5vw, 68px);
+  color: var(--m-accent-bright);
+  font-weight: 400; line-height: 1;
+}
+.next__time {
+  font-family: var(--m-font-numeral);
+  font-size: clamp(48px, 4.5vw, 92px);
+  color: var(--m-text-primary);
+  font-weight: 400; line-height: 1;
+  font-feature-settings: 'tnum' 1;
+}
+.next__countdown {
+  font-family: var(--m-font-display);
+  /* Sized to be readable from the back of the hall — roughly a
+   * quarter of the clock height, well above the tiny 20px ceiling
+   * it used to have. The operator said the remaining-time strip
+   * was "invisible" in real use; this fixes the visibility. */
+  font-size: clamp(26px, 2.4vw, 48px);
+  color: var(--m-accent);
+  margin-top: 14px;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.01em;
+}
+
+/* ── ZONE 3 · event strip ────────────────────────────────────────────── */
+.dashboard__event-strip {
+  display: flex; justify-content: center;
+}
+.event-strip {
+  display: flex; align-items: center; justify-content: center;
+  gap: 20px;
+  padding: 14px 32px;
+  border-radius: 999px;
+  width: fit-content;
+  border: 1px solid var(--m-hairline-faint);
+  font-family: var(--m-font-body);
+}
+.event-strip--today {
+  background: var(--m-accent-glow);
+  border-color: var(--m-hairline-bright);
+  box-shadow: 0 0 40px var(--m-accent-glow);
+  padding: 14px 32px;
+}
+.event-strip--upcoming {
+  background: transparent;
+  padding: 10px 24px;
+}
+.event-strip__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--m-accent);
+  box-shadow: 0 0 12px var(--m-accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+.event-strip__kind {
+  font-size: 16px;
+  color: var(--m-accent-bright);
+  letter-spacing: 0.20em; text-transform: uppercase;
+}
+.event-strip--upcoming .event-strip__kind {
+  font-size: 14px;
+  color: var(--m-accent);
+}
+.event-strip__sep {
+  width: 1px; height: 20px;
+  background: var(--m-hairline);
+}
+.event-strip--upcoming .event-strip__sep { height: 16px; }
+.event-strip__title {
+  font-family: var(--m-font-display);
+  font-size: 32px;
+  color: var(--m-accent-bright);
+}
+.event-strip--upcoming .event-strip__title {
+  font-size: 24px;
+  color: var(--m-text-secondary);
+}
+.event-strip__meta {
+  font-family: var(--m-font-body);
+  font-size: 17px;
+  color: var(--m-text-muted);
+}
+
+/* ── ZONE 4 · prayer row + salawat ───────────────────────────────────── */
+.dashboard__footer {
+  display: flex; flex-direction: column; gap: 14px;
+}
+.prayer-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+.prayer-cell {
+  position: relative;
+  padding: 18px 14px 20px;
+  text-align: center;
+  background: rgba(245, 236, 210, 0.02);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.prayer-cell--next {
+  background: linear-gradient(180deg, var(--m-accent-glow) 0%, transparent 100%);
+  border-color: var(--m-hairline-bright);
+}
+.prayer-cell__glow {
+  position: absolute; inset: 0;
+  box-shadow: inset 0 0 40px var(--m-accent-glow);
+  pointer-events: none;
+}
+.prayer-cell__star {
+  position: absolute; top: 6px; right: 6px;
+  color: var(--m-accent); line-height: 0;
+}
+.prayer-cell__name {
+  font-family: var(--m-font-display);
+  font-size: clamp(18px, 1.5vw, 30px);
+  line-height: 1;
+  color: var(--m-text-secondary);
+  margin-bottom: 8px;
+}
+.prayer-cell--next .prayer-cell__name { color: var(--m-accent-bright); }
+.prayer-cell__time {
+  font-family: var(--m-font-numeral);
+  font-size: clamp(26px, 2.25vw, 46px);
+  line-height: 1;
+  color: var(--m-text-primary);
+  font-feature-settings: 'tnum' 1;
+}
+.prayer-cell--next .prayer-cell__time { color: var(--m-text-primary); }
+
+/* ═════════════════════════════ Slideshow overlay ═══════════════════════ */
+.slideshow {
+  position: fixed; inset: 0; z-index: var(--m-z-slideshow);
+  display: none;
+  background: radial-gradient(ellipse at 50% 45%, var(--m-bg-base-alt) 0%, var(--m-bg-base) 70%);
+  color: var(--m-text-primary);
+  overflow: hidden;
+  animation: fadeIn var(--m-motion-slow) ease;
+}
+.slideshow.open { display: block; }
+
+.slideshow__pattern {
+  position: absolute; inset: 0;
+  opacity: 0.04;
+  pointer-events: none;
+}
+.slideshow__frame-outer,
+.slideshow__frame-inner {
+  position: absolute;
+  border: 1px solid var(--m-hairline);
+  pointer-events: none;
+}
+.slideshow__frame-outer { inset: 48px; }
+.slideshow__frame-inner { inset: 56px; border-color: var(--m-hairline-faint); }
+
+.slideshow__corner {
+  position: absolute;
+  color: var(--m-accent);
+  z-index: 2; pointer-events: none;
+}
+.slideshow__corner--tr { top: 36px; right: 36px; }
+.slideshow__corner--tl { top: 36px; left: 36px; }
+.slideshow__corner--br { bottom: 36px; right: 36px; }
+.slideshow__corner--bl { bottom: 36px; left: 36px; }
+
+.slideshow__column {
+  position: absolute;
+  /* Tighter frame insets so the reading area grows. Operator explicitly
+   * asked for larger text for elderly viewers — every pixel we recover
+   * from the outer frame goes to the Arabic body. */
+  inset: 40px 60px 40px;
+  /* Fixed-row grid instead of flex-column so the header's height never
+   * changes between slides — earlier builds used flex + variable-height
+   * header, so toggling the optional section-marker or subtitle shifted
+   * the body's vertical center by 20–60px on every slide change.
+   * Readers saw the Arabic text "jump" up and down between slides.
+   *
+   * Reduced header row (26% → 16%) and footer row (16% → 10%) so the
+   * body gets ~20% more vertical real estate for the larger type. */
+  display: grid;
+  grid-template-rows: minmax(140px, 16%) 1fr minmax(120px, 14%);
+  align-items: stretch;
+}
+.slideshow__header {
+  text-align: center;
+  padding-bottom: 24px;
+  /* Anchor header content to the BOTTOM of its row so the deck-title
+   * stays in the same y-position regardless of whether the optional
+   * subtitle/section-marker are present. This is what keeps the visual
+   * anchor stable between slides. */
+  display: flex; flex-direction: column; justify-content: flex-end;
+  min-height: 0;
+  overflow: hidden;
+}
+.slideshow__title-row {
+  display: flex; align-items: center; justify-content: center; gap: 28px;
+  color: var(--m-accent);
+}
+.slideshow__deck-title {
+  margin: 0;
+  font-family: var(--m-font-display);
+  /* Trimmed a touch so the header row can stay short; the Arabic body
+   * below is what the audience reads, not the deck title. */
+  font-size: clamp(32px, 2.8vw, 56px);
+  color: var(--m-accent-bright);
+  font-weight: 400; line-height: 1;
+  text-shadow: 0 0 40px rgba(226, 183, 106, 0.30);
+}
+.slideshow__deck-subtitle {
+  margin-top: 16px;
+  font-family: var(--m-font-body);
+  font-size: clamp(14px, 1vw, 22px);
+  color: var(--m-text-secondary);
+  letter-spacing: 0.04em;
+}
+.slideshow__section-marker {
+  margin-top: 22px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 18px;
+  color: var(--m-accent);
+}
+.slideshow__section-marker-rule {
+  width: 80px; height: 1px;
+}
+.slideshow__section-marker-rule--start {
+  background: linear-gradient(90deg, transparent, var(--m-hairline-bright));
+}
+.slideshow__section-marker-rule--end {
+  background: linear-gradient(90deg, var(--m-hairline-bright), transparent);
+}
+.slideshow__section-marker-label {
+  font-family: var(--m-font-body);
+  font-size: clamp(12px, 0.95vw, 18px);
+  letter-spacing: 0.32em;
+}
+
+.slideshow__body {
+  /* Grid-row 2: Arabic text is absolutely positioned inside so its
+   * FIRST-LINE anchor stays at the same y-coordinate regardless of
+   * line count, subtitle, heading, or anything else. Previously this
+   * container vertically-centered the content — which meant a long
+   * verse that wrapped to 3 visual rows would push its first line
+   * 2 rows UP compared to a short verse, creating the "text jumps"
+   * effect the operator complained about. */
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+.slideshow__subtitle-layer {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex; justify-content: center;
+  pointer-events: none;
+}
+/* Per-slide fade DISABLED — even a pure-opacity 280ms animation was
+ * read as "the text is jumping" by the operator. A religious text
+ * display doesn't benefit from motion; an instant snap is calmer and
+ * cannot produce any perceived shift. The class is kept (and empty)
+ * so future A/B experiments can re-enable the keyframe without a
+ * JSX change. */
+.slideshow__body-inner--enter { /* animation: slideEnter 280ms ease-out; */ }
+.slideshow__body-inner {
+  /* Centered vertically and horizontally inside the body row. The
+   * previous absolute `top: 30%` anchor assumed one line per slide;
+   * once we started paginating 3 lines per slide (via chunker.js),
+   * that anchor pushed the TALLER content past the footer. Using
+   * flex centering instead keeps any 1–3 line slide balanced inside
+   * the row with no overflow. */
+  position: absolute;
+  inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  margin: 0 auto;
+  padding: 0 max(20px, 3vw);
+  text-align: center;
+  font-family: var(--m-font-quranic);
+  /* Generous leading for elderly readability; 2-line pages (the new
+   * chunker default) give each line plenty of vertical room. */
+  line-height: 1.72;
+  color: var(--m-text-primary);
+  font-weight: 400;
+  direction: rtl;
+  /* Base font is roughly 1.5× the previous build. The chunker now
+   * emits 2-line pages instead of 3, so each line can grow without
+   * overflow. Operator-controlled scale layered on top via the CSS
+   * variable still works (0.7×–1.8×). At scale 1.0 on a 1080p screen
+   * the body renders ~96px — roughly double what a pocket Quran uses. */
+  font-size: calc(clamp(48px, min(5vw, 8.5vh), 110px) * var(--slideshow-font-scale, 1));
+  /* Never overflow the frame horizontally, even for long verses without
+   * natural break points. */
+  word-break: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  /* Hard width cap so super-wide displays don't stretch a single line
+   * edge-to-edge. */
+  max-width: min(1540px, 92vw);
+  max-height: 100%;
+  overflow: hidden;
+}
+.slideshow__body-inner p { margin: 0 0 0.25em; }
+.slideshow__body-inner p:last-child { margin-bottom: 0; }
+
+/* Font-size control strip — top-left of the slideshow. Sized for
+ * elderly fingers: bigger hit targets, bolder glyphs, clearly
+ * distinguishable reset pill in the middle. */
+.slideshow__fontctl {
+  position: absolute;
+  top: 22px; inset-inline-start: 30px;
+  /* Below the BLANK (z:5) overlay so the control disappears when the
+   * operator presses B to darken the hall — without this the faint
+   * 0.2-opacity pill still shows as a ghost on pitch-black and
+   * breaks the "pause the room" moment. Sits above the header rule
+   * (z:2) and below the blank overlay, revealing itself once blank
+   * is off again. */
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  background: rgba(15, 20, 28, 0.70);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: var(--m-radius-full);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  /* Faint-but-findable by default. The operator asked the buttons
+   * to "hide until the mouse is on them" — a fully invisible element
+   * can't be targeted with a mouse, so we sit at 20% opacity (readable
+   * silhouette but not demanding attention) and flip to full opacity
+   * when the cursor actually enters the pill. Keyboard-focus also
+   * reveals it for tab users. */
+  opacity: 0.2;
+  transition: opacity var(--m-motion-standard) ease;
+}
+.slideshow__fontctl:hover,
+.slideshow__fontctl:focus-within {
+  opacity: 1;
+}
+.slideshow__fontctl-btn {
+  min-width: 64px; height: 56px;
+  padding: 0 16px;
+  background: rgba(226, 183, 106, 0.08);
+  border: 0;
+  border-radius: 999px;
+  color: var(--m-accent-bright);
+  font-family: var(--m-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
+}
+.slideshow__fontctl-btn:hover {
+  background: rgba(226, 183, 106, 0.26);
+  transform: scale(1.03);
+}
+.slideshow__fontctl-btn:active { transform: scale(0.97); }
+.slideshow__fontctl-btn:focus-visible {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+}
+.slideshow__fontctl-reset {
+  color: var(--m-text-secondary);
+  font-size: 16px;
+  font-weight: 600;
+  min-width: 76px;
+  background: transparent;
+  font-family: var(--m-font-numeral);
+}
+
+/* Legacy classes kept so old lineClass prop still matches something,
+ * but they're all the same now. */
+.slideshow__body-inner--lg,
+.slideshow__body-inner--md,
+.slideshow__body-inner--sm,
+.slideshow__body-inner--xs { /* no-op */ }
+.slideshow__heading {
+  font-family: var(--m-font-display);
+  font-size: clamp(18px, 1.6vw, 30px);
+  font-weight: 400;
+  color: var(--m-accent-bright);
+  margin-bottom: 12px;
+}
+.slideshow__subtitle {
+  font-family: var(--m-font-body);
+  font-size: clamp(14px, 1vw, 22px);
+  color: var(--m-text-secondary);
+  margin-top: 16px;
+}
+.slideshow__latin {
+  font-family: var(--m-font-latin);
+  font-size: clamp(14px, 1vw, 22px);
+  color: var(--m-text-muted);
+  font-style: italic;
+  direction: ltr;
+  margin-top: 12px;
+}
+
+.slideshow__footer {
+  padding-top: 24px;
+  /* Anchored to the TOP of its grid row so the rule + counter stay in
+   * the same y-position whether the optional source label is present
+   * or not. */
+  display: flex; flex-direction: column; justify-content: flex-start;
+  min-height: 0;
+}
+.slideshow__footer-rule {
+  margin: 0 auto 20px;
+  width: 240px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--m-hairline), transparent);
+}
+/* Footer laid out in two stacked strips, all within a width-capped
+ * centred container so NOTHING in the footer ever reaches the sides
+ * of the viewport (where the arabesque corner ornaments sit). The
+ * previous 140px-inset approach still touched the corners on 1280
+ * screens — capping the total width at min(1200px, 70vw) is a more
+ * robust bound. */
+.slideshow__footer-row {
+  display: flex; flex-direction: column;
+  align-items: center;
+  gap: var(--m-space-sm);
+  width: min(1200px, 70vw);
+  margin: 0 auto;
+}
+.slideshow__footer-counter-line {
+  display: flex; justify-content: center;
+  width: 100%;
+}
+.slideshow__footer-meta-line {
+  display: flex; justify-content: space-between; align-items: center;
+  width: 100%;
+  gap: var(--m-space-xl);
+}
+.slideshow__source {
+  font-size: clamp(13px, 1vw, 18px);
+  color: var(--m-text-muted);
+  text-align: right;
+  max-width: 42%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.slideshow__counter {
+  font-family: var(--m-font-numeral);
+  font-size: clamp(20px, 1.6vw, 32px);
+  color: var(--m-accent-bright);
+  letter-spacing: 0.10em;
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 28px;
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: var(--m-radius-full);
+  background: rgba(226, 183, 106, 0.06);
+}
+.slideshow__hints {
+  font-size: clamp(13px, 0.95vw, 18px);
+  color: var(--m-text-secondary);
+  letter-spacing: 0.06em;
+  text-align: left;
+  font-family: var(--m-font-body);
+  max-width: 42%;
+}
+
+.slideshow__salawat {
+  position: absolute; bottom: 20px; left: 0; right: 0;
+  z-index: 3;
+}
+
+.slideshow__blank {
+  position: absolute; inset: 0;
+  /* Hard #000 — not `var(--m-bg-base)`, which is a mid-luminance teal
+   * and during a Muharram شهادة flips to red via [data-occasion]. The
+   * B/. toggle darkens the hall during a pause, so this overlay must
+   * be pitch-black regardless of occasion tint. */
+  background: #000;
+  opacity: 0;
+  transition: opacity var(--m-motion-slow) ease;
+  pointer-events: none;
+  z-index: 5;
+}
+.slideshow__blank.on { opacity: 1; }
+
+/* ═════════════════════════════ PIN badge ════════════════════════════════ */
+.pin-badge {
+  position: fixed; top: 26px; left: 26px; z-index: var(--m-z-pin-badge);
+  width: 280px;
+  padding: 22px;
+  background: linear-gradient(180deg, rgba(44, 82, 76, 0.94) 0%, rgba(35, 69, 64, 0.94) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 8px;
+  backdrop-filter: blur(12px);
+  box-shadow: var(--m-shadow-card);
+  font-family: var(--m-font-body);
+  color: var(--m-text-primary);
+  pointer-events: none;
+}
+.pin-badge__star {
+  position: absolute; color: var(--m-accent);
+  line-height: 0;
+}
+.pin-badge__star--tr { top: 6px; right: 6px; }
+.pin-badge__star--tl { top: 6px; left: 6px; }
+.pin-badge__star--br { bottom: 6px; right: 6px; }
+.pin-badge__star--bl { bottom: 6px; left: 6px; }
+.pin-badge__brand { margin-bottom: 14px; }
+.pin-badge__qr-wrap {
+  background: #f5ecd2;
+  padding: 10px; border-radius: 4px;
+  display: flex; justify-content: center;
+  margin-bottom: 10px;
+}
+.pin-badge__qr { width: 160px; height: 160px; display: block; }
+.pin-badge__qr-caption {
+  text-align: center;
+  font-size: 15px;
+  color: var(--m-text-muted);
+  margin-bottom: 12px;
+}
+.pin-badge__divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--m-hairline), transparent);
+  margin-bottom: 12px;
+}
+.pin-badge__row { margin-bottom: 12px; }
+.pin-badge__row:last-child { margin-bottom: 0; }
+.pin-badge__label {
+  font-size: 14px;
+  color: var(--m-text-muted);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.pin-badge__url {
+  font-family: var(--m-font-mono, 'JetBrains Mono', ui-monospace, monospace);
+  font-size: 17px;
+  color: var(--m-text-secondary);
+  direction: ltr; text-align: right;
+}
+.pin-badge__pin {
+  font-family: var(--m-font-numeral);
+  font-size: 34px;
+  color: var(--m-accent-bright);
+  letter-spacing: 0.18em; font-weight: 400;
+  text-shadow: 0 0 24px rgba(226, 183, 106, 0.4);
+  line-height: 1;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ═════════════════════════════ Help hint + overlay ═════════════════════ */
+.help-hint {
+  position: fixed; top: 60px; right: 130px; z-index: 5;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--m-hairline-bright);
+  background: rgba(226, 183, 106, 0.08);
+  color: var(--m-accent);
+  font-family: var(--m-font-display);
+  font-size: 20px; font-weight: 400;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: transform var(--m-motion-fast) ease, background var(--m-motion-fast) ease;
+}
+.help-hint:hover { transform: scale(1.06); background: var(--m-accent); color: var(--m-bg-base); }
+.help-hint:focus-visible { outline: 2px solid var(--m-accent); outline-offset: 3px; }
+
+.help-overlay {
+  position: fixed; inset: 0; z-index: var(--m-z-help);
+  display: none;
+  background: rgba(22, 48, 43, 0.92);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  overflow: hidden;
+  animation: fadeIn var(--m-motion-standard) ease;
+}
+.help-overlay.open { display: block; }
+.help-overlay__bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(35, 69, 64, 0.7), rgba(22, 48, 43, 0.95) 70%);
+  pointer-events: none;
+}
+.help-overlay__card {
+  position: absolute;
+  top: 70px; left: 140px; right: 140px; bottom: 70px;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 10px;
+  padding: 56px;
+  box-shadow: var(--m-shadow-deep);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.help-overlay__star {
+  position: absolute; color: var(--m-accent); line-height: 0;
+}
+.help-overlay__star--tr { top: 14px; right: 14px; }
+.help-overlay__star--tl { top: 14px; left: 14px; }
+.help-overlay__star--br { bottom: 14px; right: 14px; }
+.help-overlay__star--bl { bottom: 14px; left: 14px; }
+
+.help-overlay__head {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 32px; padding-bottom: 24px;
+  border-bottom: 1px solid var(--m-hairline);
+}
+.help-overlay__head-title {
+  display: flex; align-items: center; gap: 20px;
+}
+.help-overlay__title {
+  font-family: var(--m-font-display);
+  font-size: clamp(32px, 3vw, 56px);
+  color: var(--m-accent-bright);
+  font-weight: 400; line-height: 1; margin-bottom: 8px;
+}
+.help-overlay__subtitle {
+  font-size: 20px; color: var(--m-text-muted);
+}
+/* Canonical close button for every full-screen overlay (F1 / F3 / F4 /
+ * F5). Shared across SettingsOverlay, DuaPicker, PrayerTracker so the
+ * "إغلاق · Esc" affordance is consistent. Toasts/banners use the
+ * circular ".announcement-banner__close" / ".undo-toast__close" family
+ * instead — see their rules below. */
+.help-overlay__close {
+  padding: 14px 28px;
+  background: transparent;
+  border: 1px solid var(--m-hairline-bright);
+  color: var(--m-text-secondary);
+  font-size: 18px; letter-spacing: 0.06em;
+  border-radius: var(--m-radius-md); cursor: pointer;
+  min-height: 52px;
+  font-family: var(--m-font-body);
+  transition: background var(--m-motion-fast) ease, border-color var(--m-motion-fast) ease;
+}
+.help-overlay__close:hover { background: rgba(226, 183, 106, 0.10); border-color: var(--m-accent); }
+
+/* Support contact callout in F1 — bright reminder of who to phone
+ * when the operator is stuck. Free-form text the technician fills
+ * in via F3 → Advanced → جهة الدعم. */
+.help-overlay__support-callout {
+  margin-top: 22px;
+  padding: 14px 18px;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px dashed var(--m-accent);
+  border-radius: 8px;
+}
+.help-overlay__support-title {
+  font-family: var(--m-font-display);
+  font-size: 18px;
+  color: var(--m-accent-bright);
+  margin-bottom: 8px;
+}
+.help-overlay__support-body {
+  font-size: 22px;
+  color: var(--m-text-primary);
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* .help-overlay__print-btn retired in 0.8.42 (dead selector).
+ * Previously surfaced under the QR code in F1 for printing a
+ * pairing poster; the whole QR/PIN block moved to F3 → متقدّم
+ * in 0.8.34. Tombstone kept so a future maintainer doesn't
+ * wonder where the class went. */
+
+.help-overlay__body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 48px;
+  /* Scroll vertically when content (esp. the config + PIN/QR block)
+   * exceeds the card. Previously was `overflow: hidden`, which clipped
+   * the bottom of the right column on smaller screens. Using auto so
+   * the scrollbar only appears when actually needed. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.help-overlay__col {
+  display: flex; flex-direction: column; gap: 32px;
+  min-height: 0;
+}
+.help-overlay__divider {
+  background: var(--m-divider);
+}
+/* .help-overlay__pin-* selectors retired in 0.8.42 (dead selectors).
+ * The pin-callout moved from F1 to F3 → متقدّم → الاتصال من الجوال
+ * in 0.8.34. The same class family is not used on the F3 panel
+ * (that one uses `.settings__connect-*`). */
+
+.help-section__title {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 16px;
+  color: var(--m-accent);
+}
+.help-section__title-text {
+  font-family: var(--m-font-display);
+  font-size: clamp(18px, 1.5vw, 26px);
+  color: var(--m-accent-bright);
+  font-weight: 400;
+}
+.help-section__list {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 14px 24px; margin: 0;
+}
+.help-section__list dt {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 17px;
+  color: var(--m-accent);
+  direction: ltr; text-align: right;
+  padding: 6px 12px;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 6px;
+  align-self: start;
+}
+.help-section__list dd {
+  font-size: 20px;
+  color: var(--m-text-primary);
+  margin: 0; padding-top: 4px;
+  text-align: left;
+  line-height: 1.55;
+}
+
+/* ═════════════════════════════ Settings overlay ════════════════════════ */
+.settings-overlay {
+  position: fixed; inset: 0; z-index: var(--m-z-settings);
+  display: none;
+  font-family: var(--m-font-body);
+  color: var(--m-text-primary);
+  overflow: hidden;
+  animation: fadeIn var(--m-motion-standard) ease;
+}
+.settings-overlay.open { display: block; }
+.settings-overlay__bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(35, 69, 64, 0.92), rgba(15, 30, 32, 0.96) 70%);
+}
+.settings-overlay__card {
+  position: absolute;
+  top: 40px; left: 60px; right: 60px; bottom: 40px;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 10px;
+  padding: 40px 48px 32px;
+  box-shadow: var(--m-shadow-deep);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+
+.settings__msg {
+  margin: 10px 0 0;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 16px;
+  text-align: center;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline-faint);
+  color: var(--m-accent-bright);
+}
+.settings__msg--err {
+  background: rgba(178, 86, 86, 0.14);
+  border-color: rgba(178, 86, 86, 0.40);
+  color: #e89898;
+}
+
+.settings__grid {
+  margin-top: 28px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  min-height: 0;
+}
+
+/* Tabbed settings — 4 big tab buttons across the top, one focused
+ * panel below. Replaces the previous 2-column 20-field megaform that
+ * overwhelmed elderly operators on first open. */
+.settings__tabs {
+  display: flex; gap: 6px;
+  margin-top: 20px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--m-hairline-faint);
+  padding-bottom: 6px;
+}
+.settings__tab {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  padding: 16px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px 8px 0 0;
+  color: var(--m-text-secondary);
+  cursor: pointer;
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  min-height: 64px;
+  transition: background var(--m-motion-standard) ease, color var(--m-motion-standard) ease, border-color var(--m-motion-standard) ease, transform var(--m-motion-fast) ease;
+}
+.settings__tab:hover { background: rgba(226, 183, 106, 0.08); color: var(--m-text-primary); }
+.settings__tab--active {
+  background: var(--m-bg-inset);
+  border-color: var(--m-hairline);
+  border-bottom-color: var(--m-bg-inset);
+  color: var(--m-accent-bright);
+  font-weight: 600;
+  position: relative;
+}
+.settings__tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 12px; right: 12px;
+  height: 2px;
+  background: var(--m-accent);
+  border-radius: 2px;
+}
+.settings__tab-icon { font-size: 24px; }
+.settings__tab-panel {
+  display: flex; flex-direction: column;
+  gap: 18px;
+  animation: settingsTabIn var(--m-motion-standard) var(--m-ease-standard);
+}
+/* Summary panel: the authoritative read-out of what the operator
+ * has saved. Lives above every tab so even if a search box is blank
+ * the caretaker sees their real state at a glance. */
+.settings__summary {
+  padding: 14px 16px;
+  background: rgba(226, 183, 106, 0.06);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 10px;
+}
+.settings__summary-title {
+  font-family: var(--m-font-display);
+  font-size: 16px;
+  color: var(--m-accent-bright);
+  letter-spacing: 0.10em;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.settings__summary-grid {
+  display: grid;
+  /* Auto-fit so the panel doesn't leave an empty cell when only 3-4
+   * rows are shown (e.g. the Basics tab hides mosque/imam/clock
+   * because those are the tab's own fields). `minmax(240px, 1fr)`
+   * keeps each row readable and lets it collapse to a single column
+   * on very narrow overlays. */
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 24px;
+}
+.settings__summary-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--m-hairline-faint);
+  font-size: 17px;
+}
+.settings__summary-row:nth-last-child(-n+2) { border-bottom: 0; }
+.settings__summary-key {
+  color: var(--m-text-muted);
+  white-space: nowrap;
+}
+.settings__summary-val {
+  color: var(--m-text-primary);
+  font-weight: 600;
+  text-align: start;
+  overflow: hidden; text-overflow: ellipsis;
+}
+@keyframes settingsTabIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.settings__col {
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.settings__field {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.settings__label {
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  color: var(--m-accent-bright);
+  letter-spacing: 0.02em;
+}
+.settings__hint {
+  font-size: 15px;
+  color: var(--m-text-muted);
+  line-height: 1.55;
+}
+
+.settings__select,
+.settings__input {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline);
+  border-radius: var(--m-radius-md);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  font-size: 17px;
+  min-height: 52px;
+  transition: border-color var(--m-motion-fast) ease, background var(--m-motion-fast) ease;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.settings__select {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--m-accent) 50%),
+    linear-gradient(135deg, var(--m-accent) 50%, transparent 50%);
+  background-position:
+    calc(0% + 15px) calc(50% + 3px),
+    calc(0% + 20px) calc(50% + 3px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-left: 36px;
+}
+.settings__select:focus,
+.settings__input:focus {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+}
+.settings__select:hover,
+.settings__input:hover {
+  border-color: var(--m-hairline-bright);
+}
+
+.settings__location-row {
+  display: flex; gap: 8px; margin-top: 8px;
+  flex-wrap: wrap;
+}
+.settings__btn {
+  padding: 11px 18px;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline);
+  color: var(--m-accent-bright);
+  font-family: var(--m-font-body);
+  font-size: 16px;
+  border-radius: 8px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.settings__btn:hover {
+  background: rgba(226, 183, 106, 0.18);
+}
+
+.settings__connect {
+  margin-top: 8px;
+  padding: 18px 20px;
+  background: rgba(226, 183, 106, 0.08);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 8px;
+}
+.settings__connect-title {
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  color: var(--m-accent-bright);
+  margin-bottom: 14px;
+}
+.settings__connect-row {
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.settings__qr-wrap {
+  background: #f5ecd2;
+  padding: 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.settings__qr {
+  width: 160px; height: 160px; display: block;
+}
+.settings__connect-info { flex: 1; min-width: 0; }
+.settings__connect-label {
+  font-size: 13px;
+  color: var(--m-text-muted);
+  letter-spacing: 0.15em; text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.settings__connect-url {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 17px;
+  color: var(--m-text-secondary);
+  direction: ltr; text-align: right;
+}
+.settings__connect-pin {
+  font-family: var(--m-font-numeral);
+  font-size: 40px;
+  color: var(--m-accent);
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-shadow: 0 0 20px rgba(226, 183, 106, 0.35);
+}
+
+/* .help-overlay__qr-*, .help-overlay__connect-* retired in 0.8.42 —
+ * the QR + connection block moved to F3 in 0.8.34; F1 no longer
+ * renders these elements. Equivalent visuals live under the
+ * `.settings__connect-*` family. */
+
+/* 12-hour AM/PM suffix on the clock */
+.clock__suffix {
+  font-family: var(--m-font-display);
+  font-size: 0.28em;
+  color: var(--m-accent);
+  margin-right: 0.25em;
+  vertical-align: middle;
+  line-height: 1;
+  font-feature-settings: normal;
+}
+
+/* Mosque location — sits under the wordmark in the same calligraphic
+ * family at a reduced size. No emoji, gold tone to echo the title. */
+.masthead__location {
+  font-family: var(--m-font-display);
+  font-size: clamp(14px, 1.2vw, 22px);
+  font-weight: 400;
+  color: var(--m-accent);
+  letter-spacing: 0.02em;
+  margin-top: 2px;
+  text-align: center;
+  opacity: 0.9;
+}
+
+/* ═════════════════════════════ Dua Picker overlay (F4) ══════════════════ */
+.dua-picker {
+  position: fixed; inset: 0; z-index: var(--m-z-dua-picker);
+  display: none;
+  font-family: var(--m-font-body);
+  color: var(--m-text-primary);
+  overflow: hidden;
+  animation: fadeIn var(--m-motion-standard) ease;
+}
+.dua-picker.open { display: block; }
+.dua-picker__bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(35, 69, 64, 0.92), rgba(15, 30, 32, 0.96) 70%);
+}
+.dua-picker__card {
+  position: absolute;
+  top: 60px; left: 100px; right: 100px; bottom: 60px;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 10px;
+  padding: 40px 48px 28px;
+  box-shadow: var(--m-shadow-deep);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+.dua-picker__tabs {
+  display: flex; gap: 10px;
+  margin-top: 24px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--m-hairline-faint);
+  padding-bottom: 14px;
+}
+.dua-picker__tab {
+  padding: 14px 26px;
+  background: transparent;
+  border: 1px solid var(--m-hairline-faint);
+  color: var(--m-text-muted);
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 52px;
+}
+.dua-picker__tab--active {
+  background: var(--m-accent-glow);
+  border-color: var(--m-hairline-bright);
+  color: var(--m-accent-bright);
+}
+.dua-picker__tab:hover { background: rgba(226, 183, 106, 0.10); color: var(--m-accent-bright); }
+
+.dua-picker__body {
+  flex: 1; overflow-y: auto;
+  padding: 4px 2px;
+}
+.dua-picker__grid {
+  display: grid;
+  /* Wider columns + bigger gap = ~4 cards per row on a 1080p screen
+   * instead of the cramped 5-per-row in 0.8.15. Operator's eye lands
+   * on each title separately. */
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+.dua-picker__item {
+  position: relative;
+  text-align: right;
+  padding: 26px 24px 22px;
+  min-height: 130px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform var(--m-motion-fast) ease, border-color var(--m-motion-fast) ease, background var(--m-motion-fast) ease, box-shadow var(--m-motion-fast) ease;
+  font-family: var(--m-font-body);
+  color: var(--m-text-primary);
+  display: flex; flex-direction: column; justify-content: space-between;
+  gap: 8px;
+}
+/* .dua-picker__item:hover consolidated with the other hover rule
+ * below (line ~1454) so the box-shadow + border + transform are
+ * all in one place. The second block superseded this one via
+ * cascade order anyway. */
+.dua-picker__section { margin-bottom: 22px; }
+.dua-picker__section-title {
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  color: var(--m-text-secondary);
+  padding: 10px 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--m-hairline-faint);
+}
+.dua-picker__star {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 12px;
+  width: 44px; height: 44px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 50%;
+  color: var(--m-text-muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: color var(--m-motion-fast) ease, transform var(--m-motion-fast) ease, background var(--m-motion-fast) ease;
+}
+.dua-picker__star:hover {
+  color: var(--m-accent-bright);
+  background: rgba(226, 183, 106, 0.18);
+  transform: scale(1.08);
+}
+.dua-picker__star--on {
+  color: var(--m-accent-bright);
+  background: rgba(226, 183, 106, 0.22);
+  border-color: var(--m-accent);
+}
+.dua-picker__item:hover {
+  border-color: var(--m-hairline-bright);
+  background: rgba(226, 183, 106, 0.08);
+  transform: translateY(-2px);
+}
+.dua-picker__item-title {
+  font-family: var(--m-font-display);
+  font-size: 30px;
+  color: var(--m-accent-bright);
+  margin-bottom: 8px;
+  padding-inline-start: 44px;
+  line-height: 1.3;
+}
+.dua-picker__item-subtitle {
+  font-size: 16px;
+  color: var(--m-text-secondary);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.dua-picker__item-source {
+  font-size: 14px;
+  color: var(--m-text-muted);
+  letter-spacing: 0.03em;
+}
+.dua-picker__empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--m-text-muted);
+  font-size: 18px;
+}
+
+/* Settings: live search results list */
+.settings__search-results {
+  max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--m-hairline);
+  border-radius: 8px;
+  background: var(--m-bg-inset);
+  margin-bottom: 8px;
+}
+.settings__search-result {
+  display: block; width: 100%;
+  text-align: right;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--m-hairline-faint);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  cursor: pointer;
+}
+.settings__search-result:last-child { border-bottom: 0; }
+.settings__search-result:hover { background: rgba(226, 183, 106, 0.10); }
+.settings__search-result-name {
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  color: var(--m-accent-bright);
+  margin-bottom: 4px;
+}
+.settings__search-result-detail {
+  font-size: 14px;
+  color: var(--m-text-muted);
+  line-height: 1.5;
+}
+
+/* One-shot welcome strip shown the first time the library opens, to
+ * explain that custom-dua support exists. Auto-dismisses once the
+ * operator adds their first dua or clicks ×. localStorage flag
+ * `mithnah:dua-picker:welcomed` drives the visibility. */
+.dua-picker__welcome {
+  display: flex; align-items: center; gap: var(--m-space-md);
+  margin-bottom: var(--m-space-md);
+  padding: var(--m-space-md) var(--m-space-lg);
+  background: rgba(226, 183, 106, 0.08);
+  border: 1px dashed var(--m-hairline-bright);
+  border-radius: var(--m-radius-md);
+  color: var(--m-text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.dua-picker__welcome strong { color: var(--m-accent-bright); }
+.dua-picker__welcome-close {
+  flex: 0 0 auto;
+  width: 36px; height: 36px;
+  border-radius: var(--m-radius-full);
+  background: transparent;
+  border: 1px solid var(--m-hairline-faint);
+  color: var(--m-text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
+}
+.dua-picker__welcome-close:hover {
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--m-text-primary);
+}
+
+/* Dua picker: search + add-dua row */
+.dua-picker__searchbar {
+  display: flex; gap: 10px; align-items: stretch;
+  margin-bottom: 14px;
+}
+.dua-picker__search {
+  flex: 1;
+  padding: 14px 18px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline);
+  border-radius: 8px;
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  font-size: 17px;
+  min-height: 52px;
+}
+.dua-picker__search:focus {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+}
+.dua-picker__add-btn {
+  padding: 0 22px;
+  background: var(--m-accent-glow);
+  border: 1px solid var(--m-hairline-bright);
+  color: var(--m-accent-bright);
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 52px;
+  transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
+}
+.dua-picker__add-btn:hover {
+  background: rgba(226, 183, 106, 0.22);
+  transform: translateY(-1px);
+}
+/* Secondary (import / export) — same height as the primary add-btn
+ * but visually lighter so the primary action stays dominant. Uses
+ * <label> for the import path to wrap a hidden <input type=file>, so
+ * the whole pill is clickable without any JS bridge. */
+.dua-picker__secondary-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 16px;
+  min-height: 52px;
+  background: transparent;
+  border: 1px solid var(--m-hairline);
+  color: var(--m-text-secondary);
+  font-family: var(--m-font-display);
+  font-size: 16px;
+  border-radius: var(--m-radius-md);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--m-motion-fast) ease, border-color var(--m-motion-fast) ease;
+}
+.dua-picker__secondary-btn:hover {
+  background: rgba(226, 183, 106, 0.10);
+  border-color: var(--m-hairline-bright);
+  color: var(--m-accent-bright);
+}
+.dua-picker__secondary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Custom-dua accent: emerald/teal tone chosen to sit alongside the
+ * gold palette instead of fighting it. Colours tuned for WCAG AA
+ * contrast against the dark surface — title and badge both pass
+ * comfortably above 4.5:1. */
+.dua-picker__item--custom {
+  border-color: rgba(120, 200, 170, 0.45);
+  background: rgba(120, 200, 170, 0.10);
+}
+.dua-picker__item--custom .dua-picker__item-title { color: #e6f9ee; }
+.dua-picker__item-badge {
+  position: absolute;
+  top: 12px; inset-inline-end: 12px;
+  padding: 5px 14px;
+  background: rgba(120, 200, 170, 0.28);
+  color: #f0fbf5;
+  border: 1px solid rgba(120, 200, 170, 0.65);
+  border-radius: var(--m-radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.dua-picker__edit,
+.dua-picker__delete {
+  position: absolute;
+  bottom: 12px;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--m-hairline-faint);
+  color: var(--m-text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
+}
+.dua-picker__edit { inset-inline-start: 12px; bottom: 60px; }
+.dua-picker__delete { inset-inline-start: 12px; }
+.dua-picker__edit:hover   { background: rgba(226, 183, 106, 0.16); color: var(--m-accent-bright); }
+.dua-picker__delete:hover { background: rgba(240, 128, 96, 0.16); color: #ffb3a6; }
+
+/* Textarea inside inline-modal (used by CustomDuaEditor) */
+.inline-modal__textarea {
+  min-height: 200px;
+  resize: vertical;
+  font-family: var(--m-font-quranic);
+  font-size: 18px;
+  line-height: 1.7;
+  direction: rtl;
+}
+.inline-modal__card--wide { width: min(760px, 94vw); }
+
+/* ═════════════════════════════ Prayer tracker (F5) ═════════════════════ */
+.prayer-tracker {
+  position: fixed; inset: 0; z-index: var(--m-z-tracker);
+  display: none;
+  font-family: var(--m-font-body);
+  color: var(--m-text-primary);
+  overflow: hidden;
+  animation: fadeIn var(--m-motion-slow) ease;
+}
+.prayer-tracker.open { display: flex; flex-direction: column; }
+.prayer-tracker__bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 50% 35%, var(--m-accent-glow), transparent 55%),
+    radial-gradient(ellipse at 50% 0%, var(--m-bg-base-alt) 0%, var(--m-bg-base) 65%, var(--m-bg-inset) 100%);
+}
+
+/* Top header strip — auto-hides WITH the rest of the control chrome.
+ * Operator feedback: "في تتبع الركعات الشريط الي فوق ما يختفي".
+ * Previously the brand + close stayed pinned always; now it's part
+ * of the same reveal cycle. Esc still closes via keyboard so there's
+ * always a keyboard exit even while the close button is invisible. */
+.prayer-tracker__head {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 5;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 32px;
+  background: linear-gradient(180deg, rgba(11, 31, 30, 0.80) 0%, rgba(11, 31, 30, 0.60) 100%);
+  backdrop-filter: blur(6px);
+  gap: 24px;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity var(--m-motion-standard) ease, transform var(--m-motion-standard) ease;
+  pointer-events: none;
+}
+.prayer-tracker--reveal-controls .prayer-tracker__head {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* :focus-within intentionally NOT a reveal trigger here — the caretaker
+ * drives the tracker with a presentation remote (Logitech R400 and
+ * similar). Every ArrowLeft / PageDown the remote sends would otherwise
+ * leave focus on the last-clicked button and re-surface the top bar
+ * mid-prayer. Reveal stays on mouse/touch + the initial open-timer. */
+
+/* Auto-hide band — wraps modes-bar + presets as flex-column siblings
+ * so their vertical stacking is driven by actual content height, not
+ * hard-coded `top` values that drifted out of sync. The wrapper is
+ * absolute so the stage below still fills the full viewport when
+ * the band is hidden. */
+.prayer-tracker__controls-band {
+  position: absolute;
+  top: 68px; /* sits just under the always-visible thin header */
+  left: 0; right: 0;
+  z-index: 4;
+  display: flex; flex-direction: column;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity var(--m-motion-standard) ease, transform var(--m-motion-standard) ease;
+  pointer-events: none;
+}
+.prayer-tracker--reveal-controls .prayer-tracker__controls-band {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+/* Same rationale as the header above — remote-control keystrokes must
+ * not pop the control band back open. Mouse/touch or the 4-second
+ * initial open-timer are the only reveal paths. */
+.prayer-tracker__modes-bar {
+  display: flex; justify-content: center;
+  padding: 10px 32px;
+  background: linear-gradient(180deg, rgba(11, 31, 30, 0.75) 0%, rgba(11, 31, 30, 0.55) 100%);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--m-hairline-faint);
+}
+.prayer-tracker__brand { flex-shrink: 0; }
+.prayer-tracker__rakah-group {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+/* Single consolidated preset-bar rule. Earlier there were two
+ * competing blocks (one from the auto-hide refactor, one from the
+ * original design) and the later one won the background cascade,
+ * overriding the translucent dark band with a pale gold tint that
+ * didn't match the rest of the controls-band. */
+.prayer-tracker__presets {
+  display: flex; align-items: center;
+  flex-wrap: wrap;
+  gap: var(--m-space-md);
+  padding: var(--m-space-md) var(--m-space-2xl);
+  background: linear-gradient(180deg, rgba(11, 31, 30, 0.72) 0%, rgba(11, 31, 30, 0.52) 100%);
+  backdrop-filter: blur(6px);
+}
+.prayer-tracker__presets-label {
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  color: var(--m-text-secondary);
+  margin-inline-end: var(--m-space-sm);
+}
+.prayer-tracker__rakah-btn {
+  padding: 10px 18px;
+  background: transparent;
+  border: 1px solid var(--m-hairline-faint);
+  color: var(--m-text-secondary);
+  font-family: var(--m-font-display);
+  font-size: 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.prayer-tracker__rakah-btn-sub {
+  font-family: var(--m-font-body);
+  font-size: 12px;
+  color: var(--m-text-muted);
+}
+.prayer-tracker__rakah-btn--active .prayer-tracker__rakah-btn-sub {
+  color: rgba(251, 245, 227, 0.8);
+}
+.prayer-tracker__modes {
+  display: flex; gap: 6px; flex-wrap: wrap;
+}
+.prayer-tracker__mode-btn {
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px dashed var(--m-hairline-faint);
+  color: var(--m-text-muted);
+  font-family: var(--m-font-body);
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.prayer-tracker__mode-btn--active {
+  background: var(--m-accent-glow);
+  color: var(--m-accent-bright);
+  border-style: solid;
+  border-color: var(--m-hairline-bright);
+}
+/* Prayer name — display style redesigned in 0.8.34.
+ *
+ * Previous shape was a boxed pill with a border. The operator asked
+ * for something less card-like: a clean vertical stack where the
+ * label ("الصلاة") sits in small gold caps above the giant prayer
+ * name, no border, no pill. Creates more of a cinematic "title card"
+ * feel appropriate for a wall display. */
+.prayer-tracker__prayer-badge {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--m-space-sm);
+  padding: 0;
+  background: none;
+  border: 0;
+  width: 100%;
+  max-width: 100%;
+  box-shadow: none;
+}
+.prayer-tracker__prayer-label {
+  font-size: clamp(14px, 1.1vw, 18px);
+  color: var(--m-accent);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-family: var(--m-font-body);
+}
+.prayer-tracker__prayer-name {
+  font-family: var(--m-font-display);
+  font-size: clamp(72px, 7vw, 128px);
+  color: var(--m-accent-bright);
+  /* line-height 1 was clipping ascenders + descenders of large Arabic
+   * glyphs (ج / ط / ظ). 1.25 gives enough vertical box for the
+   * gradient text to render cleanly without cutting the top or
+   * bottom of letter forms. */
+  line-height: 1.25;
+  text-shadow: 0 0 80px var(--m-accent-glow);
+  /* Subtle gold gradient on the text itself — pulls the eye without
+   * needing a box around it. */
+  background: linear-gradient(180deg, var(--m-accent-bright) 0%, var(--m-accent) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  /* Vertical padding + larger horizontal padding to give glyphs a
+   * clean breathing zone — Arabic diacritics and tails need room. */
+  padding: 0.08em 0.2em;
+}
+.prayer-tracker__rakah-btn:hover { background: rgba(226, 183, 106, 0.10); }
+/* Jumu'ah button — prominent accent so the operator sees the
+ * ephemeral option when it first appears Friday morning. */
+.prayer-tracker__rakah-btn--jumuah {
+  border-color: var(--m-accent);
+  background: rgba(226, 183, 106, 0.16);
+  color: var(--m-accent-bright);
+}
+.prayer-tracker__rakah-btn--jumuah:hover {
+  background: rgba(226, 183, 106, 0.28);
+}
+.prayer-tracker__rakah-btn--active {
+  background: var(--m-accent-glow);
+  color: var(--m-accent-bright);
+  border-color: var(--m-hairline-bright);
+}
+
+/* Stage — three modes:
+ *   tracking:     2-col grid (meta | rakah hero). No empty progress
+ *                 column, no dead space.
+ *   display-only: single centred column (prayer + imam + salawat).
+ *                 Large centre-stage presence.
+ *   tasbih:       flex column so the 3-tile grid spans the width.
+ */
+.prayer-tracker__stage {
+  position: relative; z-index: 2;
+  flex: 1;
+  align-items: center; justify-items: center;
+  gap: clamp(24px, 3vw, 56px);
+  padding: clamp(24px, 3vh, 48px) clamp(32px, 4vw, 80px);
+  text-align: center;
+}
+.prayer-tracker__stage--tracking {
+  display: grid;
+  /* Narrow meta column + huge hero column. The meta card is just
+   * "prayer name + imam" — doesn't need 1fr of a wide viewport.
+   * Biasing the hero to ~3fr fills what was wasted horizontal space
+   * in the old 1fr:1.7fr split. */
+  grid-template-columns: minmax(300px, 0.9fr) minmax(500px, 3fr);
+  column-gap: clamp(16px, 2vw, 40px);
+}
+.prayer-tracker__stage--display-only {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+.prayer-tracker__stage--tasbih {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+
+/* Display-only block — centred single column that actually uses the
+ * vertical real estate instead of floating two pills in a sparse
+ * grid. The salawat ribbon below grounds the composition. */
+.prayer-tracker__display {
+  display: flex; flex-direction: column;
+  align-items: center;
+  gap: clamp(24px, 4vh, 56px);
+  width: min(860px, 90vw);
+}
+.prayer-tracker__stage--display-only .prayer-tracker__prayer-badge {
+  padding: clamp(28px, 4vh, 52px) clamp(36px, 5vw, 80px);
+  width: 100%;
+}
+.prayer-tracker__stage--display-only .prayer-tracker__prayer-name {
+  font-size: clamp(88px, 8.5vw, 160px);
+}
+.prayer-tracker__stage--display-only .prayer-tracker__imam {
+  padding: clamp(18px, 2.5vh, 28px) clamp(28px, 4vw, 48px);
+  width: 100%;
+}
+.prayer-tracker__stage--display-only .prayer-tracker__imam-name {
+  font-size: clamp(48px, 4.5vw, 80px);
+}
+/* Meta column (prayer badge + imam) — vertical stack, right-edge
+ * in RTL so it's the first thing the eye lands on. */
+.prayer-tracker__meta {
+  display: flex; flex-direction: column;
+  align-items: stretch; gap: var(--m-space-xl);
+  max-width: 100%;
+}
+.prayer-tracker__hero {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  width: 100%;
+}
+.prayer-tracker__display-centre {
+  display: flex; justify-content: center;
+  font-size: clamp(32px, 3.5vw, 64px);
+  color: var(--m-accent);
+}
+/* Progress panel retired in 0.8.33 per operator: "امسح التقدم و رتبها
+ * عشان ما يكون فيه مساحة فاضية". The rakah-cell eyebrow now carries
+ * the "الركعة N من M" hint so we don't lose the affordance.
+ *
+ * Narrow screens fall back to a stacked layout so tracking-mode
+ * still works on 1024px wall displays. */
+@media (max-width: 1100px) {
+  .prayer-tracker__stage--tracking {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    gap: var(--m-space-xl);
+  }
+}
+/* Imam name — label above a clean name with a gold hairline underneath
+ * instead of a pill. Matches the minimal "title card" aesthetic of the
+ * prayer-name block. */
+.prayer-tracker__imam {
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--m-space-sm);
+  padding: var(--m-space-md) 0 var(--m-space-lg);
+  border: 0;
+  background: none;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+}
+.prayer-tracker__imam::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 25%; right: 25%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--m-hairline-bright), transparent);
+}
+.prayer-tracker__imam-label {
+  font-size: clamp(12px, 0.95vw, 15px);
+  color: var(--m-text-muted);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  font-family: var(--m-font-body);
+}
+.prayer-tracker__imam-name {
+  font-family: var(--m-font-display);
+  font-size: clamp(32px, 3vw, 56px);
+  color: var(--m-text-primary);
+  font-weight: 400;
+  line-height: 1.1;
+}
+.prayer-tracker__imam-empty {
+  font-family: var(--m-font-body);
+  font-size: 14px;
+  color: var(--m-text-muted);
+  font-style: italic;
+}
+
+/* Big rakah / tasbih cell — the main focus. Animated entry on each
+ * step change via React `key` + this keyframe. */
+.prayer-tracker__cell {
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  animation: prayerTrackerCellIn var(--m-motion-slow) var(--m-ease-standard);
+}
+@keyframes prayerTrackerCellIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.prayer-tracker__cell-eyebrow {
+  font-family: var(--m-font-display);
+  font-size: clamp(22px, 2vw, 38px);
+  color: var(--m-accent);
+  letter-spacing: 0.05em;
+  margin-bottom: 18px;
+}
+.prayer-tracker__cell-headline {
+  font-family: var(--m-font-display);
+  /* Grew the upper bound so the rakah name actually fills the wider
+   * hero column of the new 0.9fr:3fr grid. Line-height 1.18 avoids
+   * the same top/bottom clipping issue that hit the display-only
+   * prayer-name (Arabic glyphs need room for descenders). */
+  font-size: clamp(140px, 15vw, 300px);
+  line-height: 1.18;
+  color: var(--m-accent-bright);
+  text-shadow: 0 0 60px var(--m-accent-glow);
+  font-weight: 400;
+  padding: 0.08em 0.15em;
+}
+
+/* Tasbih al-Zahra grid — three big tiles instead of plain text so
+ * the count is unmissable during the post-salam dhikr. */
+.prayer-tracker__tasbih {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 24px;
+}
+.prayer-tracker__tasbih-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+  width: min(1100px, 92vw);
+}
+.prayer-tracker__tasbih-tile {
+  background: rgba(226, 183, 106, 0.08);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 16px;
+  padding: 38px 28px 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+}
+.prayer-tracker__tasbih-count {
+  font-family: var(--m-font-numeral);
+  font-size: clamp(80px, 9vw, 160px);
+  line-height: 1;
+  color: var(--m-accent-bright);
+  text-shadow: 0 0 40px var(--m-accent-glow);
+}
+.prayer-tracker__tasbih-phrase {
+  font-family: var(--m-font-quranic);
+  font-size: clamp(28px, 2.6vw, 50px);
+  color: var(--m-text-primary);
+}
+
+/* Step dots row — visible progress without crowding the stage. */
+.prayer-tracker__dots {
+  display: flex; gap: 12px; justify-content: center;
+  margin-top: 8px;
+}
+.prayer-tracker__dot {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--m-hairline-faint);
+  transition: background var(--m-motion-standard) ease, transform var(--m-motion-standard) ease;
+}
+.prayer-tracker__dot--done { background: var(--m-accent); }
+.prayer-tracker__dot--active { background: var(--m-accent-bright); transform: scale(1.4); }
+
+/* On-screen NEXT/PREV/RESET buttons so the operator doesn't have
+ * to know about Arrow keys. */
+.prayer-tracker__on-screen-controls {
+  display: flex; gap: 14px; justify-content: center;
+  margin-bottom: 12px;
+}
+.prayer-tracker__nav-btn {
+  padding: 16px 32px;
+  font-size: 18px;
+  background: rgba(226, 183, 106, 0.12);
+  border: 1px solid var(--m-hairline);
+  color: var(--m-text-primary);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--m-font-body);
+  font-weight: 500;
+  min-height: 56px;
+  transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
+}
+.prayer-tracker__nav-btn:hover { background: rgba(226, 183, 106, 0.22); transform: translateY(-1px); }
+.prayer-tracker__nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.prayer-tracker__nav-btn--primary {
+  background: var(--m-accent);
+  color: var(--m-bg-base);
+  border-color: var(--m-accent);
+  font-weight: 600;
+}
+.prayer-tracker__nav-btn--primary:hover { background: var(--m-accent-bright); }
+
+.prayer-tracker__foot {
+  position: relative; z-index: 2;
+  padding: 16px 40px 24px;
+  border-top: 1px solid var(--m-hairline-faint);
+}
+/* Legacy 4px progress sliver removed in 0.8.30 — the new stage uses
+ * a column-aligned `.prayer-tracker__progress` panel with its own
+ * bar. The footer no longer carries a progress bar; keep this
+ * comment as a tombstone so a future maintainer doesn't re-add it. */
+.prayer-tracker__help {
+  margin-top: 12px;
+  font-family: var(--m-font-body);
+  font-size: 13px;
+  color: var(--m-text-muted);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/* Settings: per-prayer adjustment grid */
+.settings__adjust-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.settings__adjust-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 8px;
+  padding: 10px 14px 10px 16px;
+}
+.settings__adjust-label {
+  font-family: var(--m-font-display);
+  font-size: 18px;
+  color: var(--m-text-primary);
+  min-width: 90px;
+}
+.settings__adjust-select {
+  padding: 10px 14px;
+  min-width: 120px;
+  width: auto;
+  min-height: 44px;
+}
+
+/* Feature toggles (F3 Features section) — one row per feature with the
+   label on the right (RTL) and a compact on/off dropdown on the left. */
+/* Feature toggles are grouped into 5 labelled clusters (accessibility,
+ * fiqh, display, behaviour, security). Each group gets a short title
+ * so an elderly operator can scan for the category they want without
+ * reading the full list. */
+.settings__feature-groups {
+  display: flex; flex-direction: column;
+  gap: var(--m-space-xl);
+}
+.settings__feature-group {
+  display: flex; flex-direction: column;
+  gap: var(--m-space-sm);
+}
+.settings__feature-group-title {
+  font-family: var(--m-font-display);
+  font-size: 15px;
+  color: var(--m-accent-bright);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding-bottom: var(--m-space-xs);
+  border-bottom: 1px solid var(--m-hairline-faint);
+}
+.settings__features {
+  display: flex; flex-direction: column;
+  gap: var(--m-space-sm);
+}
+.settings__feature-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 8px;
+  padding: 10px 14px;
+  min-height: 56px;
+}
+.settings__feature-row--warn {
+  border-color: rgba(205, 92, 92, 0.35);
+  background: rgba(205, 92, 92, 0.06);
+}
+.settings__feature-label {
+  font-family: var(--m-font-body);
+  font-size: 17px;
+  color: var(--m-text-primary);
+  flex: 1;
+}
+.settings__feature-select {
+  min-width: 130px;
+  width: auto;
+  min-height: 44px;
+}
+
+/* Change log panel — quick scannable list of recent config writes
+ * with a "↶ تراجع آخر تغيير" button on top. Lives inside a Field in
+ * the F3 advanced tab. */
+.settings__changelog {
+  display: flex; flex-direction: column;
+  gap: 10px;
+}
+.settings__changelog-list {
+  margin: 0;
+  padding: 8px 16px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 8px;
+  list-style: decimal-leading-zero;
+  list-style-position: outside;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.settings__changelog-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--m-hairline-faint);
+  font-size: 15px;
+  color: var(--m-text-secondary);
+  display: flex; gap: 12px; justify-content: space-between;
+}
+.settings__changelog-list li:last-child { border-bottom: none; }
+.settings__changelog-when {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.settings__changelog-summary {
+  flex: 1;
+  text-align: right;
+  font-family: var(--m-font-body);
+}
+
+/* Announcement banner — LARGE animated strip at the very top of the
+ * dashboard. Redesigned after the operator reported the old single-
+ * line 18px was invisible from the back of the hall. Scroll animation
+ * lets a long message travel across the screen so the congregation
+ * can actually read it. */
+.announcement-banner {
+  position: absolute;
+  top: 0; right: 0; left: 0;
+  z-index: 20;
+  min-height: 66px;
+  display: flex; align-items: center;
+  /* Inner right-padding so the marquee track never runs over the
+   * pinned close button (absolutely positioned inside this banner). */
+  padding-inline-end: 70px;
+  font-family: var(--m-font-display);
+  color: var(--m-accent-bright);
+  background: linear-gradient(to bottom,
+    rgba(226, 183, 106, 0.32),
+    rgba(226, 183, 106, 0.12) 70%,
+    transparent);
+  border-bottom: 2px solid rgba(226, 183, 106, 0.55);
+  box-shadow: 0 4px 26px rgba(226, 183, 106, 0.18);
+  overflow: hidden;
+}
+/* Two-copy seamless track — each copy takes its natural width, the
+ * track's total width is 2× single copy. The animation translates by
+ * one copy-width (-50%/+50%) so copy #2 arrives exactly as copy #1
+ * leaves. No visible duplicate to the reader. */
+.announcement-banner__track {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: max-content;
+  will-change: transform;
+  animation-duration: var(--announcement-scroll-duration, 22s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+/* .announcement-banner__text rule consolidated with the typography
+ * block below (previously split across two declarations, which the
+ * code-quality audit flagged as a duplicate-selector). */
+/* Arabic: text enters from the right edge, scrolls left (R→L) —
+ * matches the natural reading flow of an RTL reader. */
+.announcement-banner--rtl .announcement-banner__track {
+  animation-name: announcement-scroll-rtl;
+}
+@keyframes announcement-scroll-rtl {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+/* Latin: text enters from the left edge, scrolls right (L→R). */
+.announcement-banner--ltr .announcement-banner__track {
+  animation-name: announcement-scroll-ltr;
+}
+@keyframes announcement-scroll-ltr {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+/* Pause the marquee when the operator is reading the banner. */
+.announcement-banner:hover .announcement-banner__track,
+.announcement-banner:focus-within .announcement-banner__track {
+  animation-play-state: paused;
+}
+.announcement-banner__text {
+  flex: 0 0 auto;
+  padding: 10px clamp(40px, 5vw, 96px);
+  white-space: nowrap;
+  font-size: clamp(28px, 2.8vw, 46px);
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  text-shadow: 0 0 18px rgba(226, 183, 106, 0.35);
+  /* Marquee text never needs to receive clicks — making it
+   * click-through guarantees the × button always wins the hit-test,
+   * even on the brief frames where a wide track edge momentarily
+   * overlaps the reserved 70px close-button gutter. The banner's
+   * :hover-to-pause still fires, because the banner element itself
+   * (not the text span) is what receives the pointer. */
+  pointer-events: none;
+}
+.announcement-banner__close {
+  /* Pinned absolute so the marquee track (flex: 0 0 auto with
+   * min-width: max-content) can't push it off-screen. Sitting
+   * inside the flex flow previously meant a long announcement made
+   * the track wider than the banner; the X got flex-end'd past the
+   * right edge where `overflow: hidden` clipped it, leaving no way
+   * to dismiss the banner — reported in 0.8.42 feedback. */
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(226, 183, 106, 0.5);
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  color: var(--m-accent-bright);
+  font-size: 28px; line-height: 1;
+  cursor: pointer;
+  transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
+}
+.announcement-banner__close:hover {
+  background: rgba(0, 0, 0, 0.5);
+  transform: scale(1.05);
+}
+.announcement-banner__close:focus-visible {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+}
+/* @keyframes announcement-scroll retired in 0.8.42 — replaced by
+ * the script-aware announcement-scroll-rtl / -ltr pair above. */
+
+/* Qibla corner badge — small, unobtrusive, lives in the bottom-left
+   corner (LTR flipped because the layout is RTL, so bottom-right visually
+   on-screen). */
+.qibla-badge {
+  position: absolute;
+  bottom: 20px;
+  inset-inline-start: 20px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.32);
+  border: 1px solid var(--m-hairline);
+  border-radius: 999px;
+  font-family: var(--m-font-body);
+  font-size: 15px;
+  color: var(--m-text-primary);
+  pointer-events: none;
+}
+.qibla-badge__arrow {
+  display: inline-block;
+  color: var(--m-accent-bright);
+  font-size: 20px;
+  transform-origin: 50% 50%;
+  transition: transform 0.4s ease;
+}
+
+/* 14 Infallibles rotator — now a proper inline citation in the
+ * header flow (below the Hijri/Greg dates). The previous absolute-
+ * at-bottom placement collided visually with the salawat strip and
+ * read as a floating afterthought; in-flow with subtle accent rules
+ * framing the name reads as an intentional "today we honour…" line. */
+.infallibles-rotator {
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(10px, 1.5vw, 20px);
+  margin-top: var(--m-space-md);
+  padding: 0 clamp(16px, 2vw, 32px);
+  font-family: var(--m-font-display);
+  font-size: clamp(17px, 1.5vw, 28px);
+  color: var(--m-accent-bright);
+  white-space: nowrap;
+  max-width: 90vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  opacity: 0;
+  animation: infallible-fade 8s ease infinite;
+}
+/* Gold hairline rules flanking the imam name — makes the line feel
+ * like an inscription, not a banner. */
+.infallibles-rotator::before,
+.infallibles-rotator::after {
+  content: '';
+  flex: 1 1 clamp(40px, 8vw, 140px);
+  max-width: clamp(40px, 8vw, 140px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--m-hairline-bright), transparent);
+}
+@keyframes infallible-fade {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Friday khutbah timer + Ramadan iftar countdown share a centred ribbon
+   above the prayer row. */
+.countdown-ribbon {
+  margin: 8px auto 0;
+  padding: 10px 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  background: rgba(226, 183, 106, 0.12);
+  border: 1px solid rgba(226, 183, 106, 0.38);
+  border-radius: 999px;
+  font-family: var(--m-font-display);
+  font-size: 20px;
+  color: var(--m-accent-bright);
+}
+.countdown-ribbon__label { color: var(--m-text-primary); font-size: 17px; }
+
+/* Undo toast — appears bottom-center for ~10s after a config save.
+ * Replaces "did something happen?" anxiety with a clear button to
+ * roll back. */
+.undo-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--m-z-toast);
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 22px;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-accent);
+  border-radius: var(--m-radius-full);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  font-size: 18px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  animation: undoToastIn var(--m-motion-slow) var(--m-ease-standard);
+  max-width: 92vw;
+}
+@keyframes undoToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.undo-toast__label { color: var(--m-text-secondary); }
+.undo-toast__btn {
+  background: var(--m-accent);
+  color: var(--m-bg-base);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-family: var(--m-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 48px;
+}
+.undo-toast__btn:hover { background: var(--m-accent-bright); }
+.undo-toast__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Circular close — same shape language as the announcement banner's
+ * close, so every "toast / banner"-class dismiss looks identical. */
+.undo-toast__close {
+  width: 40px; height: 40px;
+  border-radius: var(--m-radius-full);
+  background: rgba(0, 0, 0, 0.20);
+  color: var(--m-text-muted);
+  border: 1px solid var(--m-hairline-faint);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
+}
+.undo-toast__close:hover { color: var(--m-text-primary); background: rgba(0, 0, 0, 0.40); }
+.undo-toast__error {
+  width: 100%; flex-basis: 100%;
+  font-size: 15px; color: #ff8a8a; text-align: center;
+}
+.undo-toast__progress {
+  position: absolute;
+  left: 14px; right: 14px; bottom: 6px;
+  height: 3px;
+  background: rgba(226, 183, 106, 0.18);
+  border-radius: var(--m-radius-full);
+  overflow: hidden;
+}
+.undo-toast__progress-bar {
+  height: 100%;
+  background: var(--m-accent-bright);
+  transition: width 100ms linear;
+  border-radius: inherit;
+}
+/* Relative so the progress bar absolute-positions correctly. */
+.undo-toast { position: fixed; }
+
+/* Floating action menu — primary navigation for elderly caretakers
+ * who shouldn't need to know that "F3" exists. Trigger sits in the
+ * bottom-corner (RTL: bottom-LEFT visually = inset-inline-end), opens
+ * a card with one big button per overlay. F-key labels are shown as a
+ * secondary cue, not as the access mechanism. */
+.floating-menu__trigger {
+  position: fixed;
+  bottom: 24px;
+  inset-inline-end: 24px;
+  z-index: var(--m-z-menu);
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 26px;
+  min-height: 64px;
+  background: linear-gradient(135deg, var(--m-accent) 0%, var(--m-accent-bright) 100%);
+  color: var(--m-bg-base);
+  border: 2px solid var(--m-accent-bright);
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+  /* Smooth fade + slide for the idle-hide behaviour. The wall display
+   * spends most of its time idle, so any extra UI must vanish
+   * politely instead of sitting on top of the prayer times. */
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    opacity 600ms ease,
+    filter 600ms ease;
+}
+.floating-menu__trigger:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55); }
+.floating-menu__trigger:focus-visible { outline: 3px solid var(--m-text-primary); outline-offset: 2px; opacity: 1 !important; filter: none !important; }
+.floating-menu__trigger--open { background: var(--m-accent-bright); }
+.floating-menu__trigger-label { white-space: nowrap; }
+/* Idle state — pulled most of the way out, blurred slightly so it
+ * fades into the background of the wall view. Hover/focus restore
+ * full visibility instantly. */
+.floating-menu__trigger--idle {
+  /* 0.45 not 0.12: elderly operator needs to see the menu exists —
+   * the old 0.12 made it functionally invisible at normal viewing
+   * distance. Still dimmer than active so it reads as "available
+   * but not demanding attention", which is what we want on a wall
+   * display. A gentle pulse keeps the muscle-memory cue that it's
+   * interactive. */
+  opacity: 0.45;
+  animation: floatingMenuIdlePulse 4s ease-in-out infinite;
+}
+@keyframes floatingMenuIdlePulse {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.58; }
+}
+.floating-menu__trigger--idle:hover { opacity: 1; animation: none; transform: translateY(-2px); }
+
+.floating-menu__card {
+  position: fixed;
+  bottom: 104px;
+  inset-inline-end: 24px;
+  z-index: var(--m-z-menu);
+  width: min(360px, 92vw);
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  animation: floatingMenuCardIn var(--m-motion-standard) var(--m-ease-standard);
+  transform-origin: 100% 100%;
+}
+@keyframes floatingMenuCardIn {
+  from { opacity: 0; transform: scale(0.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.floating-menu__title {
+  font-family: var(--m-font-display);
+  font-size: 17px;
+  color: var(--m-text-secondary);
+  text-align: center;
+  margin: 4px 0 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--m-hairline-faint);
+}
+.floating-menu__item {
+  display: flex; align-items: center; gap: 16px;
+  width: 100%;
+  padding: 16px 18px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--m-text-primary);
+  cursor: pointer;
+  font-family: var(--m-font-body);
+  font-size: 19px;
+  text-align: right;
+  margin-bottom: 6px;
+  min-height: 64px;
+}
+.floating-menu__item:hover {
+  background: rgba(226, 183, 106, 0.12);
+  border-color: var(--m-hairline);
+}
+/* Primary item (الإعدادات) — subtle separator beneath it so the
+ * technician's most-used entry reads as the anchor action. */
+.floating-menu__item--primary {
+  margin-bottom: var(--m-space-md);
+  padding-bottom: var(--m-space-lg);
+  border-bottom: 1px solid var(--m-hairline-faint);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.floating-menu__item:focus-visible { outline: 2px solid var(--m-accent); outline-offset: 1px; }
+.floating-menu__item-icon { font-size: 28px; min-width: 36px; text-align: center; }
+.floating-menu__item-label { flex: 1; font-weight: 500; }
+.floating-menu__item-shortcut {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  color: var(--m-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--m-hairline-faint);
+}
+.floating-menu__hint {
+  font-size: 13px;
+  color: var(--m-text-muted);
+  text-align: center;
+  margin-top: 10px;
+  padding: 10px;
+  line-height: 1.6;
+}
+/* Destructive item (إغلاق التطبيق). Visually separated with a divider
+ * above and a muted red tint so an accidental click is less likely. */
+.floating-menu__item--danger {
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px solid var(--m-hairline-faint);
+  color: #ff8b7a;
+  border-radius: 8px;
+}
+.floating-menu__item--danger:hover {
+  background: rgba(255, 107, 88, 0.10);
+  border-color: rgba(255, 107, 88, 0.35);
+  color: #ffb3a6;
+}
+
+/* Auto-update status pill — sits above the floating menu trigger in
+ * the same corner, so the caretaker's eye naturally finds both. Only
+ * renders for `downloading` / `ready` states; idle emits no chrome. */
+.update-badge {
+  position: fixed;
+  bottom: 100px; /* clears the 64 px tall floating-menu trigger + gap */
+  inset-inline-end: 24px;
+  z-index: var(--m-z-menu);
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-family: var(--m-font-body);
+  font-size: 15px;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+}
+.update-badge--downloading {
+  background: rgba(11, 31, 30, 0.88);
+  border: 1px solid rgba(226, 183, 106, 0.45);
+  color: var(--m-accent-bright);
+}
+.update-badge--ready {
+  background: linear-gradient(135deg, rgba(226, 183, 106, 0.22) 0%, rgba(226, 183, 106, 0.12) 100%);
+  border: 1px solid var(--m-accent-bright);
+  color: var(--m-accent-bright);
+}
+.update-badge__dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--m-accent-bright);
+  flex-shrink: 0;
+}
+.update-badge__dot--pulse {
+  animation: update-badge-pulse 1.6s ease-in-out infinite;
+}
+@keyframes update-badge-pulse {
+  0%, 100% { opacity: 1;   transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(1.35); }
+}
+.update-badge__label { white-space: nowrap; }
+
+/* Large-text mode — single feature toggle that scales every visible
+ * font roughly 1.25× and adds extra padding to interactive controls.
+ * Targeted at elderly users with presbyopia. Toggled via
+ * features.largeText (defaults off) and applied to <html> via the
+ * Dashboard feature applier. */
+html[data-large-text="true"] {
+  font-size: 18px; /* base; rem-scaled controls inherit */
+}
+html[data-large-text="true"] .clock { font-size: clamp(180px, 14vw, 280px); }
+html[data-large-text="true"] .masthead__title { font-size: clamp(48px, 4vw, 90px); }
+html[data-large-text="true"] .next__name,
+html[data-large-text="true"] .next__time { font-size: clamp(34px, 3.2vw, 60px); }
+html[data-large-text="true"] .prayer-cell__name { font-size: clamp(20px, 1.7vw, 32px); }
+html[data-large-text="true"] .prayer-cell__time { font-size: clamp(28px, 2.2vw, 44px); }
+html[data-large-text="true"] .event-strip__title { font-size: clamp(22px, 1.8vw, 34px); }
+html[data-large-text="true"] .settings__label { font-size: 20px; }
+html[data-large-text="true"] .settings__hint { font-size: 16px; }
+html[data-large-text="true"] .settings__btn { font-size: 16px; min-height: 52px; padding: 12px 18px; }
+html[data-large-text="true"] .help-overlay__title { font-size: 32px; }
+html[data-large-text="true"] .floating-menu__trigger { font-size: 19px; min-height: 64px; }
+html[data-large-text="true"] .floating-menu__item { font-size: 19px; min-height: 64px; }
+html[data-large-text="true"] .inline-modal__title { font-size: 26px; }
+html[data-large-text="true"] .inline-modal__btn { font-size: 17px; min-height: 52px; }
+html[data-large-text="true"] .onboarding-overlay__title { font-size: 34px; }
+html[data-large-text="true"] .onboarding-overlay__msg { font-size: 19px; }
+html[data-large-text="true"] .onboarding-overlay__btn { font-size: 17px; min-height: 56px; }
+
+/* First-run tour — gentle 4-step walkthrough that fires once per
+ * machine after onboarding completes. Highlights one Dashboard
+ * region at a time and explains what it does. Skipped via
+ * localStorage flag thereafter. */
+.first-run-tour {
+  position: fixed; inset: 0;
+  z-index: var(--m-z-tour);
+  display: block;
+  animation: fadeIn var(--m-motion-standard) ease;
+}
+.first-run-tour__bg {
+  position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+.first-run-tour__bg--blur {
+  backdrop-filter: blur(3px);
+}
+/* Four panels arranged AROUND the highlight rectangle. Each panel
+ * carries the blur + tint, so the highlighted region between them
+ * stays sharp + unblurred. */
+.first-run-tour__panel {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  cursor: pointer;
+}
+.first-run-tour__highlight {
+  position: absolute;
+  border: 3px solid var(--m-accent-bright);
+  border-radius: 14px;
+  box-shadow: 0 0 36px rgba(226, 183, 106, 0.55);
+  pointer-events: none;
+  transition: top var(--m-motion-slow) ease, left var(--m-motion-slow) ease, width var(--m-motion-slow) ease, height var(--m-motion-slow) ease;
+  animation: tourHighlightPulse 1600ms ease-in-out infinite;
+}
+@keyframes tourHighlightPulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(226, 183, 106, 0.40); }
+  50%      { box-shadow: 0 0 48px rgba(226, 183, 106, 0.75); }
+}
+.first-run-tour__card {
+  position: absolute;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(500px, 92vw);
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-accent);
+  border-radius: 14px;
+  padding: 30px 32px 24px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  text-align: center;
+  animation: tourCardIn var(--m-motion-slow) var(--m-ease-standard);
+}
+@keyframes tourCardIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(16px) scale(0.96); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.first-run-tour__icon { font-size: 44px; margin-bottom: 10px; }
+.first-run-tour__title {
+  font-family: var(--m-font-display);
+  font-size: 28px;
+  color: var(--m-accent-bright);
+  margin-bottom: 12px;
+}
+.first-run-tour__body {
+  font-size: 18px;
+  color: var(--m-text-primary);
+  line-height: 1.75;
+  margin-bottom: 22px;
+}
+.first-run-tour__progress {
+  display: flex; gap: 6px; justify-content: center;
+  margin-bottom: 16px;
+}
+.first-run-tour__dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--m-hairline-faint);
+  transition: background var(--m-motion-standard) ease, transform var(--m-motion-standard) ease;
+}
+.first-run-tour__dot--done { background: var(--m-accent); }
+.first-run-tour__dot--active { background: var(--m-accent-bright); transform: scale(1.4); }
+.first-run-tour__buttons {
+  display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
+}
+.first-run-tour__btn {
+  padding: 13px 26px;
+  font-size: 17px;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline);
+  color: var(--m-text-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--m-font-body);
+  min-height: 54px;
+}
+.first-run-tour__btn:hover { background: rgba(226, 183, 106, 0.20); }
+.first-run-tour__btn--primary {
+  background: var(--m-accent);
+  color: var(--m-bg-base);
+  border-color: var(--m-accent);
+  font-weight: 600;
+}
+.first-run-tour__btn--primary:hover { background: var(--m-accent-bright); }
+.first-run-tour__btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--m-text-muted);
+}
+.first-run-tour__btn--ghost:hover { color: var(--m-text-primary); background: rgba(255,255,255,0.04); }
+
+/* Inline modal — used for PIN entry, custom coordinates, kiosk
+ * unlock. Replaces native window.prompt/confirm which don't render
+ * in packaged Electron kiosk. Smaller and lighter than the full
+ * settings/help overlays; floats above EVERY other overlay so a
+ * PIN prompt / exit confirm is never buried behind the tracker or
+ * slideshow. */
+.inline-modal {
+  position: fixed; inset: 0;
+  z-index: var(--m-z-inline-modal);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--m-text-primary);
+  animation: fadeIn var(--m-motion-fast) ease;
+}
+.inline-modal__bg {
+  position: absolute; inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+}
+.inline-modal__card {
+  position: relative;
+  width: min(440px, 92vw);
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 10px;
+  padding: 28px 28px 22px;
+  box-shadow: var(--m-shadow-deep);
+}
+.inline-modal__card--narrow { width: min(360px, 90vw); }
+.inline-modal__title {
+  font-family: var(--m-font-display);
+  font-size: 26px;
+  color: var(--m-accent-bright);
+  text-align: center;
+  margin-bottom: 8px;
+}
+.inline-modal__subtitle {
+  text-align: center;
+  font-size: 15px;
+  color: var(--m-text-secondary);
+  margin-bottom: 20px;
+  line-height: 1.55;
+}
+.inline-modal__field {
+  display: flex; flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.inline-modal__label {
+  font-size: 15px;
+  color: var(--m-text-secondary);
+}
+.inline-modal__input {
+  padding: 13px 16px;
+  font-size: 17px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline);
+  border-radius: 8px;
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  direction: rtl;
+  text-align: right;
+  width: 100%;
+  min-height: 52px;
+  box-sizing: border-box;
+}
+.inline-modal__input--center {
+  text-align: center;
+  letter-spacing: 0.4em;
+  font-size: 26px;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+.inline-modal__input:focus {
+  outline: none;
+  border-color: var(--m-accent);
+}
+.inline-modal__error {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(205, 92, 92, 0.12);
+  border: 1px solid rgba(205, 92, 92, 0.45);
+  border-radius: 8px;
+  color: #ffd6d6;
+  font-size: 15px;
+  text-align: center;
+}
+.inline-modal__buttons {
+  display: flex; gap: 10px; justify-content: center;
+  margin-top: 20px;
+}
+.inline-modal__btn {
+  padding: 13px 26px;
+  font-size: 17px;
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline);
+  color: var(--m-text-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--m-font-body);
+  min-height: 52px;
+}
+.inline-modal__btn:hover { background: rgba(226, 183, 106, 0.18); }
+.inline-modal__btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.inline-modal__btn--primary {
+  background: var(--m-accent);
+  color: var(--m-bg-base);
+  border-color: var(--m-accent);
+  font-weight: 600;
+}
+.inline-modal__btn--primary:hover { background: var(--m-accent-bright); }
+
+/* First-run onboarding overlay — high z-index so it covers the
+ * dashboard during setup. Same visual family as help/settings
+ * overlays so the operator sees one coherent design. */
+.onboarding-overlay {
+  position: fixed; inset: 0;
+  z-index: var(--m-z-onboarding);
+  display: none;
+  color: var(--m-text-primary);
+  animation: fadeIn var(--m-motion-standard) ease;
+}
+.onboarding-overlay.open { display: block; }
+.onboarding-overlay__bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(35, 69, 64, 0.92), rgba(15, 30, 32, 0.98) 70%);
+}
+.onboarding-overlay__card {
+  position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(560px, 92vw);
+  max-height: 90vh;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 12px;
+  padding: 36px 36px 24px;
+  box-shadow: var(--m-shadow-deep);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.onboarding-overlay__head {
+  text-align: center;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--m-hairline-faint);
+  margin-bottom: 24px;
+}
+.onboarding-overlay__head > :first-child { margin: 0 auto; display: block; }
+.onboarding-overlay__title {
+  margin-top: 14px;
+  font-family: var(--m-font-display);
+  font-size: 32px;
+  color: var(--m-accent-bright);
+}
+.onboarding-overlay__subtitle {
+  margin-top: 10px;
+  font-size: 17px;
+  color: var(--m-text-secondary);
+  line-height: 1.55;
+}
+.onboarding-overlay__offline {
+  margin: 16px 0 6px;
+  padding: 14px 18px;
+  background: rgba(240, 128, 96, 0.12);
+  border: 1px solid rgba(240, 128, 96, 0.45);
+  border-radius: 10px;
+  font-size: 16px;
+  color: #ffb3a6;
+  line-height: 1.7;
+}
+.onboarding-overlay__offline strong { color: #ffd2c7; margin-inline-end: 4px; }
+.onboarding-overlay__body {
+  display: flex; flex-direction: column;
+  gap: 16px;
+}
+.onboarding-overlay__body--center {
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 24px 0;
+}
+.onboarding-overlay__spinner {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: 3px solid rgba(226, 183, 106, 0.20);
+  border-top-color: var(--m-accent-bright);
+  animation: spin 800ms linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.onboarding-overlay__msg {
+  font-size: 18px;
+  color: var(--m-text-primary);
+  line-height: 1.55;
+}
+.onboarding-overlay__msg--err { color: #ff8a8a; }
+.onboarding-overlay__hint {
+  font-size: 14px;
+  color: var(--m-text-muted);
+  margin-top: 6px;
+  line-height: 1.6;
+}
+.onboarding-overlay__confirm {
+  text-align: center;
+  padding: 22px;
+  background: rgba(226, 183, 106, 0.06);
+  border: 1px solid rgba(226, 183, 106, 0.25);
+  border-radius: 10px;
+}
+.onboarding-overlay__confirm-label {
+  font-size: 16px; color: var(--m-text-secondary);
+  margin-bottom: 10px;
+}
+.onboarding-overlay__confirm-name {
+  font-family: var(--m-font-display);
+  font-size: 30px;
+  color: var(--m-accent-bright);
+  margin-bottom: 8px;
+}
+.onboarding-overlay__confirm-coords {
+  font-size: 15px;
+  color: var(--m-text-muted);
+}
+.onboarding-overlay__guide {
+  margin: 0;
+  padding-inline-start: 24px;
+  font-size: 15px;
+  color: var(--m-text-secondary);
+  line-height: 1.8;
+}
+.onboarding-overlay__guide li { margin-bottom: 6px; }
+.onboarding-overlay__search {
+  padding: 13px 16px;
+  font-size: 17px;
+  background: var(--m-bg-inset);
+  border: 1px solid var(--m-hairline);
+  border-radius: 8px;
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  direction: rtl;
+  text-align: right;
+  min-height: 52px;
+}
+.onboarding-overlay__search:focus {
+  outline: none;
+  border-color: var(--m-accent);
+}
+.onboarding-overlay__results {
+  display: flex; flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 6px;
+}
+.onboarding-overlay__result {
+  text-align: right;
+  padding: 12px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--m-text-primary);
+  cursor: pointer;
+  direction: rtl;
+  min-height: 52px;
+}
+.onboarding-overlay__result:hover {
+  background: rgba(226, 183, 106, 0.12);
+  border-color: var(--m-hairline);
+}
+.onboarding-overlay__result-name {
+  font-size: 18px;
+  color: var(--m-text-primary);
+  font-weight: 500;
+}
+.onboarding-overlay__result-detail {
+  font-size: 14px;
+  color: var(--m-text-muted);
+  margin-top: 4px;
+}
+.onboarding-overlay__buttons {
+  display: flex; flex-wrap: wrap;
+  gap: 10px; justify-content: center;
+  margin-top: 12px;
+}
+.onboarding-overlay__btn {
+  padding: 13px 26px;
+  font-size: 17px;
+  background: rgba(226, 183, 106, 0.08);
+  border: 1px solid var(--m-hairline);
+  color: var(--m-text-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: var(--m-font-body);
+  min-height: 52px;
+}
+.onboarding-overlay__btn:hover {
+  background: rgba(226, 183, 106, 0.16);
+}
+.onboarding-overlay__btn--primary {
+  background: var(--m-accent);
+  color: var(--m-bg-base);
+  border-color: var(--m-accent);
+  font-weight: 600;
+}
+.onboarding-overlay__btn--primary:hover {
+  background: var(--m-accent-bright);
+}
+
+/* Dhikr counter overlay (F7). Minimal — mostly the current count. */
+/* ErrorBoundary toast — renders ABOVE every other overlay so an error
+ * in a subtree is never buried behind a modal. Clicks dismiss it; the
+ * surviving siblings stay mounted. */
+.error-boundary-toast {
+  position: fixed;
+  bottom: var(--m-space-md);
+  inset-inline-end: var(--m-space-md);
+  z-index: var(--m-z-critical);
+  padding: var(--m-space-sm) var(--m-space-lg);
+  background: rgba(205, 92, 92, 0.25);
+  border: 1px solid rgba(205, 92, 92, 0.6);
+  border-radius: var(--m-radius-sm);
+  color: #ffd6d6;
+  font: 15px/1.5 var(--m-font-body);
+  max-width: 360px;
+  cursor: pointer;
+}
+.error-boundary-toast__msg {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: var(--m-space-xs);
+  line-height: 1.5;
+}
+
+/* Accessibility: 48px minimum tap targets on interactive elements */
+.dua-picker__item,
+.dua-picker__tab,
+.settings__btn,
+.settings__search-result,
+.dash__btn,
+.help-overlay__close,
+.prayer-tracker__rakah-btn {
+  min-height: 48px;
+}
+.help-hint { min-width: 48px; min-height: 48px; }

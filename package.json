@@ -1,0 +1,97 @@
+{
+  "name": "mithnah",
+  "productName": "Mithnah",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mithnah — a free, open-source mosque display for Shia Ithna Ashari (Twelver) communities. Offline-first, local prayer-time calculation with Jafari method, multi-variant Hijri calendar, global location support, GPS handoff from phone, presenter-style slideshow for verified Shia duas and ziyarat, and a pluggable auto-update channel.",
+  "author": "Ali Hussin",
+  "license": "MIT",
+  "main": "src/main/index.js",
+  "homepage": "./",
+  "scripts": {
+    "dev": "concurrently -k -n renderer,main -c blue,green \"npm:dev:renderer\" \"npm:dev:main\"",
+    "dev:renderer": "vite",
+    "dev:main": "cross-env NODE_ENV=development electron .",
+    "build": "npm run build:renderer && npm run build:main",
+    "build:renderer": "vite build && node scripts/copy-vendor-to-dist.js",
+    "build:main": "node -e \"console.log('main process requires no build step')\"",
+    "start": "electron .",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "test": "node --test --test-reporter=spec \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "adhan": "4.4.3",
+    "electron-updater": "^6.3.9",
+    "express": "5.2.1",
+    "qrcode": "1.5.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "socket.io": "4.8.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "4.3.4",
+    "concurrently": "8.2.2",
+    "cross-env": "7.0.3",
+    "electron": "28.3.3",
+    "electron-builder": "24.13.3",
+    "vite": "5.4.21"
+  },
+  "build": {
+    "appId": "app.mithnah.desktop",
+    "productName": "Mithnah",
+    "copyright": "Copyright © 2026 Ali Hussin. Licensed under MIT.",
+    "directories": {
+      "output": "dist/electron-builder"
+    },
+    "files": [
+      "src/main/**/*",
+      "src/public/**/*",
+      "build-output/mobile-control.html",
+      "build-output/mobile-control.js",
+      "build-output/vendor/**/*",
+      "dist/renderer/**/*",
+      "package.json",
+      "!**/*.map",
+      "!**/*.ps1",
+      "!scripts/**/*",
+      "!tests/**/*",
+      "!docs/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src/public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mithnah",
+      "installerIcon": "src/public/icon.ico",
+      "uninstallerIcon": "src/public/icon.ico",
+      "include": "build/installer.nsh"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "src/public/icon.ico"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "alihus294",
+        "repo": "mithnah",
+        "private": false,
+        "releaseType": "release"
+      }
+    ]
+  }
+}

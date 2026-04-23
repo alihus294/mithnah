@@ -1,0 +1,54 @@
+name: Release (tag-triggered)
+
+# Publishes a new release when a v*.*.* tag is pushed. electron-builder
+# generates the Windows installer, its .blockmap, and latest.yml (the feed
+# electron-updater consumes). All three are attached to the GitHub Release.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release (e.g. v0.5.0). Must already exist on the repo.'
+        required: true
+
+permissions:
+  contents: write  # needed to create GitHub Releases
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build renderer
+        run: npm run build
+
+      - name: Package and publish (electron-builder with GitHub provider)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win --x64 --publish always
+        # electron-builder picks up the publish config from package.json
+        # ("github") and uploads the .exe, .exe.blockmap, and latest.yml to
+        # the Release matching the tag. If the Release doesn't exist yet it
+        # creates one as draft; GH_TOKEN has permission via the permissions
+        # block above.

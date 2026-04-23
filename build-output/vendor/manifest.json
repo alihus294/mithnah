@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-04-19T18:22:41.805Z",
+  "google": [
+    {
+      "name": "tajawal",
+      "cssFile": "google-tajawal.css",
+      "fontCount": 10
+    },
+    {
+      "name": "cairo",
+      "cssFile": "google-cairo.css",
+      "fontCount": 3
+    },
+    {
+      "name": "changa-naskh",
+      "cssFile": "google-changa-naskh.css",
+      "fontCount": 8
+    },
+    {
+      "name": "amiri-scheherazade",
+      "cssFile": "google-amiri-scheherazade.css",
+      "fontCount": 15
+    },
+    {
+      "name": "material-symbols",
+      "cssFile": "google-material-symbols.css",
+      "fontCount": 1
+    },
+    {
+      "name": "be-vietnam-pro",
+      "cssFile": "google-be-vietnam-pro.css",
+      "fontCount": 15
+    },
+    {
+      "name": "inter-noto-arabic",
+      "cssFile": "google-inter-noto-arabic.css",
+      "fontCount": 12
+    },
+    {
+      "name": "renderer-bundle",
+      "cssFile": "google-renderer-bundle.css",
+      "fontCount": 30
+    }
+  ],
+  "fontAwesome": {
+    "cssFile": "font-awesome.css",
+    "fontCount": 8
+  },
+  "textures": {
+    "count": 3,
+    "files": [
+      {
+        "url": "https://www.transparenttextures.com/patterns/arabesque.png",
+        "localPath": "./vendor/textures/arabesque.png",
+        "ok": true
+      },
+      {
+        "url": "https://www.transparenttextures.com/patterns/islamic-art.png",
+        "localPath": "./vendor/textures/islamic-art.png",
+        "ok": true
+      },
+      {
+        "url": "https://www.transparenttextures.com/patterns/stardust.png",
+        "localPath": "./vendor/textures/stardust.png",
+        "ok": true
+      }
+    ]
+  }
+}

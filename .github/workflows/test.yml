@@ -1,0 +1,46 @@
+# Test workflow — runs on every push and pull request.
+# Free quota: 2000 min/month on public repos, well within budget.
+
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'project/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: project
+        run: npm ci
+
+      - name: Syntax-check every main-process file
+        working-directory: project
+        shell: bash
+        run: |
+          for f in $(find src/main -name "*.js"); do
+            node --check "$f" || { echo "SYNTAX FAIL: $f"; exit 1; }
+          done
+          echo "All src/main JS files parse cleanly."
+
+      - name: Run test suite
+        working-directory: project
+        run: npm test

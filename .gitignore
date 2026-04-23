@@ -1,0 +1,46 @@
+# --- Node / build artifacts ---
+node_modules/
+dist/
+out/
+.cache/
+.parcel-cache/
+.vite/
+
+# --- Logs ---
+*.log
+install.log
+build-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# --- Environment ---
+.env
+.env.*
+!.env.example
+
+# --- Temp / scratch scripts (underscore prefix convention) ---
+scripts/_*.ps1
+notes/_*.ps1
+
+# --- Audit artifacts ---
+audit.json
+audit.*.json
+
+# --- Workspace-level backup directory ---
+/backup/
+*.asar
+*.asar.original
+*.asar.*.bak
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Electron builder output (redundant with dist/ but explicit) ---
+dist/electron-builder/
+*.nupkg
