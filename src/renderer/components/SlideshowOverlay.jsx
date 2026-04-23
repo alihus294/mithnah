@@ -93,6 +93,45 @@ export default function SlideshowOverlay({ state }) {
   const subtitleHonorific = /علي بن أبي طالب|فاطمة|الحسن|الحسين|العسكري|المهدي|الصادق|الباقر|الرضا|الكاظم|السجاد|الجواد|الهادي/.test(deck.subtitle || '');
 
   const arabicLines = (slide?.ar || '').split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Fit-to-container scale. The caretaker's user-set font scale above
+  // can push a slide past the body row's visible area — operator
+  // 2026-04-23 asked that NO text be clipped outside the frame at any
+  // font size. We measure the natural content height against the
+  // container and apply a down-scale-only factor via CSS var (transform
+  // would ignore the overflow-hidden on the parent). ResizeObserver
+  // fires whenever either the window or the slide changes, so this
+  // stays in sync with Ctrl+/- + slide navigation.
+  const bodyRef = useRef(null);
+  const contentRef = useRef(null);
+  const [fitScale, setFitScale] = useState(1);
+  useEffect(() => {
+    if (!state?.active) return;
+    const container = bodyRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+    const measure = () => {
+      // Compute using the content's NATURAL height (post-text-wrap) and
+      // compare to the container's height. Add a tiny safety margin
+      // so tall glyph ascenders never kiss the boundary.
+      const cH = container.clientHeight;
+      const content0 = content.scrollHeight;
+      if (cH <= 0 || content0 <= 0) return;
+      // currentFit is whatever transform was last applied. Back-
+      // compute the unscaled height (content0 / currentFit) and decide
+      // whether we still need to shrink. Clamp to [0.4, 1] so we never
+      // grow (user controls growth via fontScale) and never vanish.
+      const natural = content0 / (fitScale || 1);
+      const needed = cH / natural;
+      const next = Math.max(0.4, Math.min(1, needed));
+      if (Math.abs(next - fitScale) > 0.01) setFitScale(next);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    ro.observe(content);
+    return () => ro.disconnect();
+  }, [state?.active, state?.index, fontScale, fitScale]);
   // Every slide renders at the same type size — previous dynamic scaling
   // (lg/md/sm/xs) caused visible "jumps" between consecutive slides.
   // We paginate 1 verse per slide so scaling is no longer needed.
@@ -104,7 +143,7 @@ export default function SlideshowOverlay({ state }) {
       dir="rtl"
       aria-live="polite"
       role="region"
-      style={{ '--slideshow-font-scale': fontScale }}
+      style={{ '--slideshow-font-scale': fontScale, '--slideshow-fit-scale': fitScale }}
       onMouseMove={revealChrome}
       onTouchStart={revealChrome}
     >
@@ -170,9 +209,10 @@ export default function SlideshowOverlay({ state }) {
             with no intermediate frame where the new text is rendered
             at full opacity (which is what made the text look like it
             "jumped" before the fade in the previous build). */}
-        <div className="slideshow__body">
+        <div className="slideshow__body" ref={bodyRef}>
           <div
             key={`${deck.id}-${state.index}`}
+            ref={contentRef}
             className={`slideshow__body-inner slideshow__body-inner--enter ${lineClass}`}
           >
             {arabicLines.length > 0 && (

@@ -389,8 +389,46 @@ html[data-large-text="true"] .masthead__logo {
   padding: 14px 32px;
 }
 .event-strip--upcoming {
-  background: transparent;
-  padding: 10px 24px;
+  background: rgba(226, 183, 106, 0.06);
+  padding: 14px 26px 14px 22px;
+  gap: 22px;
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 14px; /* rectangular card instead of pill so the
+                         two-line layout reads naturally */
+}
+/* Countdown pill — emphasised so "بعد ٥ يوم" or "غداً" is the FIRST
+ * thing the eye registers. Operator 2026-04-23 asked the upcoming-
+ * event display be clearer — the old inline version made the
+ * countdown look incidental. */
+.event-strip__countdown {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 4px;
+  padding: 10px 18px;
+  min-width: 110px;
+  background: rgba(226, 183, 106, 0.12);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: 10px;
+  text-align: center;
+}
+.event-strip__countdown-kind {
+  font-family: var(--m-font-body);
+  font-size: clamp(10px, 0.85vw, 13px);
+  color: var(--m-accent);
+  letter-spacing: 0.20em;
+  text-transform: uppercase;
+}
+.event-strip__countdown-when {
+  font-family: var(--m-font-display);
+  font-size: clamp(20px, 1.8vw, 30px);
+  color: var(--m-accent-bright);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.event-strip__content {
+  display: flex; flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: start;
 }
 .event-strip__dot {
   width: 8px; height: 8px; border-radius: 50%;
@@ -418,8 +456,9 @@ html[data-large-text="true"] .masthead__logo {
   color: var(--m-accent-bright);
 }
 .event-strip--upcoming .event-strip__title {
-  font-size: 24px;
-  color: var(--m-text-secondary);
+  font-size: clamp(22px, 2vw, 32px);
+  color: var(--m-accent-bright);
+  text-align: start;
 }
 .event-strip__meta {
   font-family: var(--m-font-body);
@@ -512,20 +551,16 @@ html[data-large-text="true"] .masthead__logo {
 
 .slideshow__column {
   position: absolute;
-  /* Tighter frame insets so the reading area grows. Operator explicitly
-   * asked for larger text for elderly viewers — every pixel we recover
-   * from the outer frame goes to the Arabic body. */
-  inset: 40px 60px 40px;
-  /* Fixed-row grid instead of flex-column so the header's height never
-   * changes between slides — earlier builds used flex + variable-height
-   * header, so toggling the optional section-marker or subtitle shifted
-   * the body's vertical center by 20–60px on every slide change.
-   * Readers saw the Arabic text "jump" up and down between slides.
-   *
-   * Reduced header row (26% → 16%) and footer row (16% → 10%) so the
-   * body gets ~20% more vertical real estate for the larger type. */
+  /* Tightened frame insets again 2026-04-23 per operator request —
+   * the dua body should eat every spare pixel. 24px side padding
+   * (down from 60px) still respects the corner ornaments, while the
+   * body row reclaims ~72px of horizontal room. */
+  inset: 28px 40px 28px;
   display: grid;
-  grid-template-rows: minmax(140px, 16%) 1fr minmax(120px, 14%);
+  /* Header/footer rows shrunk further (min-height 120/100 and 14/10%)
+   * so the Arabic body has maximum vertical real estate at any font
+   * size. Fit-to-container scale still guarantees no clipping. */
+  grid-template-rows: minmax(120px, 14%) 1fr minmax(100px, 10%);
   align-items: stretch;
 }
 .slideshow__header {
@@ -632,17 +667,24 @@ html[data-large-text="true"] .masthead__logo {
    * overflow. Operator-controlled scale layered on top via the CSS
    * variable still works (0.7×–1.8×). At scale 1.0 on a 1080p screen
    * the body renders ~96px — roughly double what a pocket Quran uses. */
-  font-size: calc(clamp(48px, min(5vw, 8.5vh), 110px) * var(--slideshow-font-scale, 1));
-  /* Never overflow the frame horizontally, even for long verses without
-   * natural break points. */
+  /* Base size bumped to clamp(52–120px). `--slideshow-font-scale` is
+   * the caretaker's explicit zoom (Ctrl +/-), `--slideshow-fit-scale`
+   * is a downscale-only safety multiplier set by the overlay when
+   * rendered content exceeds the container — together they guarantee
+   * the text fills as much space as possible AND never clips outside
+   * the frame at any Ctrl+ level. */
+  font-size: calc(clamp(52px, min(5.3vw, 9vh), 120px) * var(--slideshow-font-scale, 1) * var(--slideshow-fit-scale, 1));
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  /* Hard width cap so super-wide displays don't stretch a single line
-   * edge-to-edge. */
-  max-width: min(1540px, 92vw);
-  max-height: 100%;
-  overflow: hidden;
+  /* Width cap widened — on ultra-wide walls we want a single line
+   * of a long verse to stretch further before wrapping. Still
+   * bounded so it doesn't edge-kiss the corner ornaments. */
+  max-width: min(1720px, 95vw);
+  /* overflow:hidden removed — the fit-to-container observer now
+   * shrinks the font until content fits, so nothing ever needs to
+   * be clipped. If the observer fails for any reason we fall back
+   * to visible overflow which is still better than missing text. */
 }
 .slideshow__body-inner p { margin: 0 0 0.25em; }
 .slideshow__body-inner p:last-child { margin-bottom: 0; }
@@ -2172,6 +2214,11 @@ html[data-large-text="true"] .masthead__logo {
   from { opacity: 0; transform: translateY(10px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* .prayer-tracker__cell-eyebrow retired 2026-04-23 — operator asked
+ * to remove the "الركعة ١ من ٥" line so the cell can be taller. The
+ * class is still used by the tasbih card (which keeps its eyebrow
+ * heading), so we DON'T remove the rule outright — just reset the
+ * margin bias to something cleaner for that survivor. */
 .prayer-tracker__cell-eyebrow {
   font-family: var(--m-font-display);
   font-size: clamp(22px, 2vw, 38px);
@@ -2181,11 +2228,13 @@ html[data-large-text="true"] .masthead__logo {
 }
 .prayer-tracker__cell-headline {
   font-family: var(--m-font-display);
-  /* Grew the upper bound so the rakah name actually fills the wider
-   * hero column of the new 0.9fr:3fr grid. Line-height 1.18 avoids
-   * the same top/bottom clipping issue that hit the display-only
-   * prayer-name (Arabic glyphs need room for descenders). */
-  font-size: clamp(140px, 15vw, 300px);
+  /* With the eyebrow removed and the step-dots row retired, the
+   * headline is the only content inside the hero cell — it can
+   * fill the full stage. Cap bumped to 340px (from 300px) so on
+   * 4K screens the word "الثانية" reads from the back of a
+   * large hall. Line-height 1.18 still protects against ascender/
+   * descender clipping on tall Arabic glyphs. */
+  font-size: clamp(160px, 17vw, 340px);
   line-height: 1.18;
   color: var(--m-accent-bright);
   text-shadow: 0 0 60px var(--m-accent-glow);
@@ -2253,19 +2302,10 @@ html[data-large-text="true"] .masthead__logo {
   font-style: normal;
 }
 
-/* Step dots row — visible progress without crowding the stage. */
-.prayer-tracker__dots {
-  display: flex; gap: 12px; justify-content: center;
-  margin-top: 8px;
-}
-.prayer-tracker__dot {
-  width: 14px; height: 14px;
-  border-radius: 50%;
-  background: var(--m-hairline-faint);
-  transition: background var(--m-motion-standard) ease, transform var(--m-motion-standard) ease;
-}
-.prayer-tracker__dot--done { background: var(--m-accent); }
-.prayer-tracker__dot--active { background: var(--m-accent-bright); transform: scale(1.4); }
+/* .prayer-tracker__dots retired 2026-04-23 — the "remaining" progress
+ * indicator was a direct duplicate of the eyebrow text we also just
+ * deleted, and the caretaker explicitly asked for a roomier hero
+ * cell. Tombstoned so a future pass doesn't reintroduce it. */
 
 /* On-screen NEXT/PREV/RESET buttons so the operator doesn't have
  * to know about Arrow keys. */

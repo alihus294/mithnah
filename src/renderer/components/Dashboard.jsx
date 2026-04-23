@@ -169,40 +169,52 @@ const HONORIFIC_RE = /الإمام|الرسول|النبي|فاطمة|الزهر
 
 function EventStrip({ event, upcoming }) {
   const MONTHS_AR = ['محرم','صفر','ربيع الأول','ربيع الآخر','جمادى الأولى','جمادى الآخرة','رجب','شعبان','رمضان','شوال','ذو القعدة','ذو الحجة'];
-  let kind, title, meta, honorific, isToday;
   if (event) {
-    kind = EVENT_KIND_LABEL_AR[event.kind] || 'مناسبة';
-    title = event.title_ar || '';
-    honorific = HONORIFIC_RE.test(title);
-    meta = null;
-    isToday = true;
-  } else if (upcoming) {
-    kind = 'المناسبة القادمة';
-    title = upcoming.event?.title_ar || '';
-    const m = MONTHS_AR[(upcoming.hijriTarget?.month ?? 1) - 1] || '';
-    meta = `${toArabicDigits(upcoming.hijriTarget?.day ?? '')} ${m} · بعد ${toArabicDigits(upcoming.daysAway ?? 0)} يوم`;
-    honorific = HONORIFIC_RE.test(title);
-    isToday = false;
-  } else {
-    return null;
+    const kind = EVENT_KIND_LABEL_AR[event.kind] || 'مناسبة';
+    const title = event.title_ar || '';
+    const honorific = HONORIFIC_RE.test(title);
+    return (
+      <div className="event-strip event-strip--today">
+        <span className="event-strip__dot" />
+        <span className="event-strip__kind">{kind}</span>
+        <span className="event-strip__sep" />
+        <span className="event-strip__title">
+          <HonorifiedTitle title={title} honorific={honorific} starSize={11} />
+        </span>
+      </div>
+    );
   }
-
-  return (
-    <div className={`event-strip ${isToday ? 'event-strip--today' : 'event-strip--upcoming'}`}>
-      {isToday && <span className="event-strip__dot" />}
-      <span className="event-strip__kind">{kind}</span>
-      <span className="event-strip__sep" />
-      <span className="event-strip__title">
-        <HonorifiedTitle title={title} honorific={honorific} starSize={isToday ? 11 : 9} />
-      </span>
-      {meta && (
-        <>
-          <span className="event-strip__sep" />
-          <span className="event-strip__meta">{meta}</span>
-        </>
-      )}
-    </div>
-  );
+  if (upcoming) {
+    // Redesigned 2026-04-23 — operator asked for a clearer upcoming-
+    // event display. Old version stuffed kind + title + Hijri day +
+    // "بعد N يوم" into one inline row separated by vertical rules,
+    // which packed the most load-bearing number (the countdown) into
+    // the smallest-looking slot. New layout pulls the countdown onto
+    // its own badge on the leading edge so it reads first.
+    const title = upcoming.event?.title_ar || '';
+    const month = MONTHS_AR[(upcoming.hijriTarget?.month ?? 1) - 1] || '';
+    const hijriDay = upcoming.hijriTarget?.day ?? '';
+    const daysAway = upcoming.daysAway ?? 0;
+    const honorific = HONORIFIC_RE.test(title);
+    const daysLabel = daysAway === 0 ? 'اليوم' : daysAway === 1 ? 'غداً' : `بعد ${toArabicDigits(daysAway)} يوم`;
+    return (
+      <div className="event-strip event-strip--upcoming">
+        <div className="event-strip__countdown">
+          <div className="event-strip__countdown-kind">المناسبة القادمة</div>
+          <div className="event-strip__countdown-when">{daysLabel}</div>
+        </div>
+        <div className="event-strip__content">
+          <div className="event-strip__title">
+            <HonorifiedTitle title={title} honorific={honorific} starSize={9} />
+          </div>
+          <div className="event-strip__meta">
+            {toArabicDigits(hijriDay)} {month}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 function PrayerCell({ prayerKey, name, time, active }) {

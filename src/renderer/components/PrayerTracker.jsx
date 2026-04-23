@@ -434,29 +434,24 @@ export default function PrayerTracker() {
               </div>
             </aside>
 
-            {/* Giant rakah headline. Centre column of the 2-col
-                tracking-mode grid. Takes the whole flex 1 space. */}
+            {/* Giant rakah headline. The eyebrow "الركعة ١ من ٥" was
+                removed per operator request 2026-04-23: the progress
+                dots below (now retired as of the same pass) already
+                conveyed "how many" and the caretaker only cares
+                about "which one NOW". The step name now takes the
+                whole hero space so it reads from across the hall. */}
             <div className="prayer-tracker__hero">
               <div className="prayer-tracker__cell" key={index}>
-                <div className="prayer-tracker__cell-eyebrow">الركعة {toArabicDigits(index + 1)} من {toArabicDigits(sequence.length)}</div>
                 <div className="prayer-tracker__cell-headline">{RAKAH_NAMES_AR[step.n - 1] || toArabicDigits(step.n)}</div>
               </div>
             </div>
           </>
         )}
 
-        {/* Step dots hidden in display-only mode. */}
-        {!displayOnly && (
-          <div className="prayer-tracker__dots" aria-hidden="true">
-            {sequence.map((s, i) => (
-              <span
-                key={i}
-                className={`prayer-tracker__dot ${i === index ? 'prayer-tracker__dot--active' : ''} ${i < index ? 'prayer-tracker__dot--done' : ''}`}
-                title={s.kind === 'rakah' ? `الركعة ${RAKAH_NAMES_AR[s.n - 1]}` : 'تسبيح الزهراء'}
-              />
-            ))}
-          </div>
-        )}
+        {/* Step-dots row retired 2026-04-23 — operator feedback
+            explicitly asked to remove the rakah-remaining indicator,
+            and with no eyebrow either we can let the هيرو cell fill
+            the full vertical space of the stage. */}
       </section>
 
       <footer className="prayer-tracker__foot">
