@@ -17,29 +17,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-          cache-dependency-path: 'project/package-lock.json'
 
       - name: Install dependencies
-        working-directory: project
         run: npm ci
 
       - name: Run tests
-        working-directory: project
         run: npm test
 
       - name: Package installer
-        working-directory: project
         run: npm run dist
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: mithnah-installer
-          path: project/dist/electron-builder/*.exe
+          path: dist/electron-builder/*.exe
           retention-days: 7
           if-no-files-found: error

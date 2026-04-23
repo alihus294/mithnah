@@ -24,16 +24,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
-          cache-dependency-path: 'project/package-lock.json'
 
       - name: Install dependencies
-        working-directory: project
         run: npm ci
 
       - name: Syntax-check every main-process file
-        working-directory: project
         shell: bash
         run: |
           for f in $(find src/main -name "*.js"); do
@@ -42,5 +39,4 @@ jobs:
           echo "All src/main JS files parse cleanly."
 
       - name: Run test suite
-        working-directory: project
         run: npm test
