@@ -20,17 +20,37 @@
 
 const { dialog } = require('electron');
 
-const INITIAL_CHECK_DELAY_MS    = 10 * 1000;
-const RECURRING_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Scheduling policy (operator-requested, 2026-04-23):
+//   • 10 s after launch: first check — catches an update that was
+//     published while the wall was powered off overnight.
+//   • While online: one check per day at local 00:00. The hall is
+//     empty, the install (if any) downloads silently, and the restart
+//     prompt is waiting when the caretaker walks in the next morning.
+//   • While offline: retry every 2 minutes. The first retry that
+//     succeeds is effectively "as soon as the Wi-Fi came back" — we
+//     don't need a separate `online` event listener, the fast-retry
+//     loop gets there first.
+const INITIAL_CHECK_DELAY_MS = 10 * 1000;
+const OFFLINE_RETRY_MS       = 2 * 60 * 1000;
+// Substrings that identify a network error (as opposed to a 404 /
+// parse error / code bug). When we see these we flip into the
+// fast-retry loop; otherwise the daily schedule resumes unchanged.
+const NETWORK_ERROR_PATTERNS = [
+  'ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT',
+  'ERR_INTERNET_DISCONNECTED', 'ERR_NAME_NOT_RESOLVED',
+  'net::ERR_', 'getaddrinfo', 'unable to verify',
+  'network', 'Network', 'offline'
+];
 
 const IPC_STATE_CHANNEL = 'updater:state';
 
 let autoUpdater = null;
-let recurringTimer = null;
+let scheduledTimer = null; // tracks EITHER the next-midnight timer OR the 2-min retry
 let hasShownRestartPrompt = false;
 let started = false;
 let state = 'idle';
 let lastInfo = null;
+let lastCheckFailedNetwork = false;
 let getMainWindow = () => null;
 
 function safeRequireUpdater() {
@@ -68,16 +88,74 @@ function wireEvents(logger = console) {
     debug: () => {}
   };
   u.on('checking-for-update',   ()    => setState('checking'));
-  u.on('update-available',      (info) => setState('downloading', info));
-  u.on('update-not-available',  (info) => setState('idle', info));
+  u.on('update-available',      (info) => {
+    // A real response from GitHub proves we're online again; clear the
+    // offline flag so the next schedule hop goes back to daily cadence.
+    lastCheckFailedNetwork = false;
+    setState('downloading', info);
+  });
+  u.on('update-not-available',  (info) => {
+    lastCheckFailedNetwork = false;
+    setState('idle', info);
+    // Successful check on the daily cadence (or first success after an
+    // offline stretch) — line up the next one for the upcoming 00:00.
+    scheduleNextDailyCheck(logger);
+  });
   u.on('download-progress',     (p)   => setState('downloading', { percent: p.percent, transferred: p.transferred, total: p.total }));
   u.on('update-downloaded',     (info) => {
+    lastCheckFailedNetwork = false;
     setState('ready', info);
     promptRestart(info, logger).catch(err => logger.error('[updater] prompt failed:', err));
   });
   u.on('error', (err) => {
-    logger.error('[updater] error:', err && err.message ? err.message : err);
-    setState('error', { message: err && err.message });
+    const msg = err && err.message ? String(err.message) : '';
+    logger.error('[updater] error:', msg || err);
+    setState('error', { message: msg });
+    // Network errors → fast retry so we catch the moment Wi-Fi
+    // comes back. Other errors (parse, signature, etc.) → treat as
+    // transient and resume the normal daily schedule so we don't
+    // hammer GitHub with retries for a software bug.
+    const looksNetwork = NETWORK_ERROR_PATTERNS.some((p) => msg.includes(p));
+    lastCheckFailedNetwork = looksNetwork;
+    if (looksNetwork) scheduleOfflineRetry(logger);
+    else              scheduleNextDailyCheck(logger);
+  });
+}
+
+// Milliseconds from `now` until the next local 00:00 (midnight). Never
+// returns 0 — at exactly midnight we schedule for tomorrow's midnight,
+// otherwise a just-fired timer could immediately re-fire.
+function msUntilNextMidnight(now = new Date()) {
+  const next = new Date(now);
+  next.setHours(24, 0, 0, 0); // rolls over to tomorrow 00:00:00.000 local
+  return Math.max(60_000, next.getTime() - now.getTime());
+}
+
+function clearScheduled() {
+  if (scheduledTimer) { clearTimeout(scheduledTimer); scheduledTimer = null; }
+}
+
+function scheduleNextDailyCheck(logger) {
+  clearScheduled();
+  const delay = msUntilNextMidnight();
+  const when = new Date(Date.now() + delay);
+  logger.log(`[updater] next check scheduled for ${when.toISOString()} (local midnight, in ${Math.round(delay / 60_000)} min)`);
+  scheduledTimer = setTimeout(() => runCheck(logger), delay);
+}
+
+function scheduleOfflineRetry(logger) {
+  clearScheduled();
+  logger.log(`[updater] offline — retrying in ${OFFLINE_RETRY_MS / 1000}s`);
+  scheduledTimer = setTimeout(() => runCheck(logger), OFFLINE_RETRY_MS);
+}
+
+function runCheck(logger) {
+  const u = autoUpdater;
+  if (!u) return;
+  u.checkForUpdates().catch((err) => {
+    logger.error('[updater] scheduled check failed:', err && err.message ? err.message : err);
+    // The 'error' event will have already fired and picked the right
+    // reschedule branch — no need to double-schedule here.
   });
 }
 
@@ -194,27 +272,21 @@ function start({ getMainWindow: _getMainWindow, enabled, logger = console } = {}
   wireEvents(logger);
   started = true;
 
-  setTimeout(() => {
-    u.checkForUpdates().catch(err => {
-      logger.error('[updater] initial check failed:', err && err.message ? err.message : err);
-    });
-  }, INITIAL_CHECK_DELAY_MS);
-
-  recurringTimer = setInterval(() => {
-    u.checkForUpdates().catch(err => {
-      logger.error('[updater] recurring check failed:', err && err.message ? err.message : err);
-    });
-  }, RECURRING_CHECK_INTERVAL_MS);
+  // First check 10 seconds after launch. The event handlers wired
+  // above will take it from here — on success they queue the next
+  // midnight; on network error they queue a 2-minute retry. No
+  // setInterval loop needed.
+  setTimeout(() => runCheck(logger), INITIAL_CHECK_DELAY_MS);
 
   const feedDesc = (() => {
     try { return u.getFeedURL ? u.getFeedURL() : 'configured feed'; }
     catch (_) { return 'default (package.json build.publish)'; }
   })();
-  logger.log(`[updater] started — feed=${feedDesc || 'default'}, interval=${RECURRING_CHECK_INTERVAL_MS / 3600000}h`);
+  logger.log(`[updater] started — feed=${feedDesc || 'default'}, policy=daily-at-midnight + 2min-retry-while-offline`);
 }
 
 function stop() {
-  if (recurringTimer) { clearInterval(recurringTimer); recurringTimer = null; }
+  clearScheduled();
   started = false;
 }
 
@@ -238,7 +310,13 @@ async function checkNow(logger = console) {
   if (!u) throw new Error('electron-updater not available');
   try {
     const result = await u.checkForUpdates();
-    return { ok: true, updateAvailable: Boolean(result && result.updateInfo && result.updateInfo.version) };
+    // electron-updater returns `{ updateInfo, downloadPromise }`.
+    // `updateInfo` is populated even when there's no update (it
+    // reflects the remote latest.yml) — so we can't just check its
+    // presence. The real signal is `downloadPromise`: it exists
+    // only when an actual download has been kicked off (i.e. the
+    // remote version beats the installed version per semver).
+    return { ok: true, updateAvailable: Boolean(result && result.downloadPromise) };
   } catch (err) {
     logger.error('[updater] checkNow failed:', err);
     return { ok: false, error: err.message };
