@@ -197,7 +197,22 @@ const PLACEHOLDER_OWNERS = new Set([
 // Returns null when properly configured, or a diagnostic string when the
 // feed is obviously unconfigured. Caller should refuse to start the
 // updater in that case.
+//
+// Critical subtlety — electron-builder STRIPS the `build` field from
+// the package.json it ships inside the packaged .exe (it bakes the
+// publish config into resources/app-update.yml instead, which is
+// what electron-updater actually reads at runtime). So in a packaged
+// build `pkg.build` is always undefined, and this function would
+// spuriously report "no build.publish block in package.json" — which
+// is exactly what 0.1.3 did in the field, wedging the updater into
+// an error state with a working feed. The isPackaged short-circuit
+// restricts placeholder detection to development runs where the
+// full package.json IS on disk.
 function detectPlaceholderConfig() {
+  try {
+    const { app } = require('electron');
+    if (app && app.isPackaged) return null;
+  } catch (_) { /* no electron module — proceed with dev check below */ }
   try {
     const pkg = require('../../../package.json');
     const publish = Array.isArray(pkg.build && pkg.build.publish)
