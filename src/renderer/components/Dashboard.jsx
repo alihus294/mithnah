@@ -249,6 +249,26 @@ function useKioskUnlockGuard() {
   return [unlock, setUnlock];
 }
 
+// Hook: reads the current mosque logo (PNG uploaded by the operator)
+// as a data URL, re-fetching whenever main broadcasts `app:logo-changed`.
+// null when nothing has been uploaded — Dashboard skips the <img> in
+// that case so the masthead falls back to the text-only header.
+function useMosqueLogo() {
+  const [src, setSrc] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      window.electron?.app?.getLogo?.()
+        .then((r) => { if (!cancelled) setSrc(r?.ok ? (r.data || null) : null); })
+        .catch(() => { if (!cancelled) setSrc(null); });
+    };
+    refresh();
+    const off = window.electron?.app?.onLogoChanged?.(refresh);
+    return () => { cancelled = true; if (typeof off === 'function') off(); };
+  }, []);
+  return src;
+}
+
 export default function Dashboard() {
   const now = useClock();
   const state = usePrayerTimes();
@@ -257,6 +277,7 @@ export default function Dashboard() {
   const { event, upcoming, hijriEffective } = useTodayEvents();
   const [unlock, setUnlock] = useKioskUnlockGuard();
   const [unlockPin, setUnlockPin] = useState('');
+  const logoSrc = useMosqueLogo();
 
   const submitKioskQuit = async (pin) => {
     setUnlock((u) => u && { ...u, pending: true, error: '' });
@@ -349,9 +370,25 @@ export default function Dashboard() {
         <header className="dashboard__header">
           <div className="masthead">
             <span className="masthead__rule masthead__rule--start" />
-            <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
+            {logoSrc ? (
+              <img
+                src={logoSrc}
+                alt="شعار المسجد"
+                className="masthead__logo"
+                /* Loaded from APPDATA via an IPC-delivered data URL so
+                   cached across upgrades per the installer.nsh data-
+                   preservation policy. A missing / corrupted file
+                   falls back to the text header below. */
+              />
+            ) : (
+              <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
+            )}
             <h1 className="masthead__title">{mosqueName}</h1>
-            <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
+            {logoSrc ? (
+              <img src={logoSrc} alt="" aria-hidden="true" className="masthead__logo masthead__logo--mirror" />
+            ) : (
+              <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
+            )}
             <span className="masthead__rule masthead__rule--end" />
           </div>
           {config?.location?.name && (

@@ -106,6 +106,10 @@ contextBridge.exposeInMainWorld('electron', {
     kioskQuit:         (payload) => ipcRenderer.invoke('app:kiosk-quit', payload),
     getVersion:        async () => { const r = await ipcRenderer.invoke('app:get-version'); return r?.ok ? r.data : ''; },
     restartAndInstall: () => ipcRenderer.invoke('app:updater-restart-install'),
+    uploadLogo:        () => ipcRenderer.invoke('app:upload-logo'),
+    removeLogo:        () => ipcRenderer.invoke('app:remove-logo'),
+    getLogo:           () => ipcRenderer.invoke('app:get-logo'),
+    onLogoChanged:     (callback) => bindChannel('app:logo-changed', callback),
     onKioskUnlockRequest: (callback) => bindChannel('kiosk:unlock-request', callback),
     // Mobile-control remote commands targeted at the renderer
     // overlays (open the prayer tracker, advance it, etc). Main

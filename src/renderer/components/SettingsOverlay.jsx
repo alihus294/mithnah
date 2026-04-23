@@ -140,6 +140,61 @@ function Field({ label, children, hint }) {
   );
 }
 
+// Mosque-logo upload control. Preview + upload + remove in a row,
+// driven by the three new IPC handlers (app:upload-logo / remove-logo
+// / get-logo). The preview keeps itself in sync via the logo-changed
+// broadcast without the operator needing to reopen F3.
+function LogoField() {
+  const [src, setSrc] = useState(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = () => {
+      window.electron?.app?.getLogo?.()
+        .then((r) => { if (!cancelled) setSrc(r?.ok ? (r.data || null) : null); })
+        .catch(() => { if (!cancelled) setSrc(null); });
+    };
+    refresh();
+    const off = window.electron?.app?.onLogoChanged?.(refresh);
+    return () => { cancelled = true; if (typeof off === 'function') off(); };
+  }, []);
+  const onPick = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const r = await window.electron.app.uploadLogo();
+      if (!r?.ok) setErr(r?.error || 'تعذّر رفع الصورة');
+    } catch (e) { setErr(e?.message || 'خطأ'); }
+    finally { setBusy(false); }
+  };
+  const onRemove = async () => {
+    setErr(''); setBusy(true);
+    try {
+      const r = await window.electron.app.removeLogo();
+      if (!r?.ok) setErr(r?.error || 'تعذّر حذف الصورة');
+    } catch (e) { setErr(e?.message || 'خطأ'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <div className="settings__logo-field">
+      <div className="settings__logo-preview">
+        {src ? <img src={src} alt="شعار المسجد" /> : <span className="settings__logo-empty">— لا يوجد شعار —</span>}
+      </div>
+      <div className="settings__logo-actions">
+        <button type="button" className="settings__btn" onClick={onPick} disabled={busy}>
+          {src ? 'تغيير الصورة' : 'اختر صورة PNG'}
+        </button>
+        {src && (
+          <button type="button" className="settings__btn settings__btn--danger" onClick={onRemove} disabled={busy}>
+            حذف الشعار
+          </button>
+        )}
+      </div>
+      {err && <div className="settings__msg settings__msg--err">{err}</div>}
+    </div>
+  );
+}
+
 export default function SettingsOverlay() {
   const [open, setOpen] = useState(false);
   const [config, setCfg] = useState(null);
@@ -935,6 +990,10 @@ export default function SettingsOverlay() {
                 maxLength={120}
                 placeholder="مثال: مسجد الإمام علي، ديربورن"
               />
+            </Field>
+
+            <Field label="شعار المسجد" hint="ارفع صورة PNG بخلفية شفافة. تظهر في رأس الشاشة الرئيسية بجوار اسم المسجد.">
+              <LogoField />
             </Field>
 
             <Field label="اسم الإمام الحالي" hint="يظهر في شاشة متابعة الصلاة (F5) ليعرف الجمهور من يصلّي بهم.">

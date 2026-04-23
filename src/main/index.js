@@ -1869,3 +1869,73 @@ ipcMain.handle('app:updater-restart-install', () => {
     return { ok: false, error: err.message };
   }
 });
+
+// Mosque logo: the operator uploads a PNG via a native file picker,
+// we copy it into %APPDATA%\Mithnah\mosque-logo.png (preserving it
+// across upgrades, since installer.nsh never touches APPDATA). The
+// renderer reads it back via app:get-logo which returns a data URL.
+const LOGO_PATH = path.join(USER_DATA_PATH, 'mosque-logo.png');
+const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — enough for a high-res PNG without exploding APPDATA
+
+ipcMain.handle('app:upload-logo', async (event) => {
+  if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
+  try {
+    const { dialog } = require('electron');
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow || null, {
+      title: 'اختر شعار المسجد — PNG بخلفية شفافة',
+      properties: ['openFile'],
+      filters: [{ name: 'PNG', extensions: ['png'] }]
+    });
+    if (canceled || !filePaths?.length) return { ok: true, data: { cancelled: true } };
+    const src = filePaths[0];
+    const stat = await fsp.stat(src);
+    if (!stat.isFile()) return { ok: false, error: 'ليس ملفّاً صالحاً' };
+    if (stat.size > LOGO_MAX_BYTES) {
+      return { ok: false, error: 'حجم الصورة يتجاوز ٢ ميجا — اختر صورة أصغر' };
+    }
+    // Verify PNG magic bytes before persisting so a renamed .jpg
+    // doesn't land in userData and break the <img> later.
+    const head = Buffer.alloc(8);
+    const fd = await fsp.open(src, 'r');
+    try { await fd.read(head, 0, 8, 0); } finally { await fd.close(); }
+    const pngMagic = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!head.equals(pngMagic)) {
+      return { ok: false, error: 'الملف ليس PNG صالحاً' };
+    }
+    await fsp.copyFile(src, LOGO_PATH);
+    // Broadcast so the Dashboard re-renders without waiting for the
+    // next config tick.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('app:logo-changed'); } catch (_) {}
+    }
+    return { ok: true, data: { path: LOGO_PATH, sizeBytes: stat.size } };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('app:remove-logo', async (event) => {
+  if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
+  try {
+    await fsp.rm(LOGO_PATH, { force: true });
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try { mainWindow.webContents.send('app:logo-changed'); } catch (_) {}
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Return the logo as a data URL for <img src="...">. null when no
+// logo has been uploaded. Using a data URL (not file://) dodges
+// Electron's webSecurity/file-access quirks on packaged builds.
+ipcMain.handle('app:get-logo', async () => {
+  try {
+    const buf = await fsp.readFile(LOGO_PATH);
+    return { ok: true, data: 'data:image/png;base64,' + buf.toString('base64') };
+  } catch (err) {
+    if (err.code === 'ENOENT') return { ok: true, data: null };
+    return { ok: false, error: err.message };
+  }
+});
