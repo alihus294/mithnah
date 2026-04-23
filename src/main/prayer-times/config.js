@@ -28,7 +28,12 @@ const KNOWN_KEYS = new Set([
   'hideAsr', 'hideIsha', 'occasionOverride', 'clockFormat',
   'locationAccuracyMeters', 'locationSource', 'locationFixedAt',
   'announcementText', 'announcementAutoHideSeconds',
-  'settingsPinHash', 'features', 'supportContact', 'imamName'
+  'settingsPinHash', 'features', 'supportContact', 'imamName',
+  // `imamList`: a stored roster of imams the caretaker cycles between.
+  // `imamName` still carries the currently-selected imam (so the wall
+  // renders what the hall expects right now); `imamList` is the
+  // picker's source. Introduced 2026-04-23.
+  'imamList'
 ]);
 
 function coerceFeatures(raw) {
@@ -123,6 +128,27 @@ function coerce(obj) {
       const raw = obj?.imamName;
       if (typeof raw !== 'string') return '';
       return raw.trim().slice(0, 120);
+    })(),
+    // Operator-managed roster of imams. Each entry is a plain string
+    // (name only — no credentials or roles since Shia protocol
+    // doesn't distinguish among those). Caps at 40 to keep the F5
+    // dropdown usable; dedupes case-insensitively so typos don't
+    // spawn duplicate rows.
+    imamList: (() => {
+      const raw = Array.isArray(obj?.imamList) ? obj.imamList : [];
+      const seen = new Set();
+      const out = [];
+      for (const v of raw) {
+        if (typeof v !== 'string') continue;
+        const s = v.trim().slice(0, 120);
+        if (!s) continue;
+        const k = s.toLowerCase();
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(s);
+        if (out.length >= 40) break;
+      }
+      return out;
     })(),
     settingsPinHash: (() => {
       const raw = obj?.settingsPinHash;

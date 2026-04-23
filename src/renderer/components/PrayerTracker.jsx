@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
 import { toArabicDigits } from '../lib/format.js';
-import { getConfig, getTodayAndNext, onConfigChanged } from '../lib/ipc.js';
+import { getConfig, setConfig, getTodayAndNext, onConfigChanged } from '../lib/ipc.js';
 import { useModalActive } from '../lib/useModalActive.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 
@@ -84,8 +84,12 @@ export default function PrayerTracker() {
   const [displayOnly, setDisplayOnly] = useState(false);
   // Imam name read from config so the technician sets it once via F3
   // and the wall reflects whoever is leading. Auto-refreshes when
-  // the config changes mid-session.
+  // the config changes mid-session. imamList carries the F3-managed
+  // roster that feeds the picker dropdown below — a caretaker with
+  // three rotating imams picks from the list instead of retyping
+  // "الشيخ فلان" every prayer.
   const [imamName, setImamName] = useState('');
+  const [imamList, setImamList] = useState([]);
   // Tell main to STOP swallowing arrow keys while this tracker is
   // visible — without this, an active slideshow underneath would
   // capture arrows before they reach our keydown handler below.
@@ -131,8 +135,16 @@ export default function PrayerTracker() {
 
   useEffect(() => {
     let cancelled = false;
-    getConfig().then((c) => { if (!cancelled) setImamName(c?.imamName || ''); }).catch(() => {});
-    const off = onConfigChanged((c) => { if (!cancelled) setImamName(c?.imamName || ''); });
+    getConfig().then((c) => {
+      if (cancelled) return;
+      setImamName(c?.imamName || '');
+      setImamList(Array.isArray(c?.imamList) ? c.imamList : []);
+    }).catch(() => {});
+    const off = onConfigChanged((c) => {
+      if (cancelled) return;
+      setImamName(c?.imamName || '');
+      setImamList(Array.isArray(c?.imamList) ? c.imamList : []);
+    });
     return () => { cancelled = true; if (typeof off === 'function') off(); };
   }, []);
 
@@ -266,6 +278,32 @@ export default function PrayerTracker() {
               عرض فقط
             </button>
           </div>
+          {imamList.length > 0 && (
+            <div className="prayer-tracker__imam-picker">
+              <label className="prayer-tracker__imam-picker-label" htmlFor="imam-picker-select">الإمام:</label>
+              <select
+                id="imam-picker-select"
+                className="prayer-tracker__imam-picker-select"
+                value={imamName || ''}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setImamName(name); // optimistic
+                  setConfig({ imamName: name }).catch(() => {});
+                }}
+              >
+                <option value="">— اختر الإمام —</option>
+                {imamList.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+                {/* Current value may not be in the list (e.g. the
+                    caretaker just typed a new name in F3). Show it
+                    anyway so the selection doesn't silently switch. */}
+                {imamName && !imamList.includes(imamName) && (
+                  <option key={imamName} value={imamName}>{imamName} (غير محفوظ)</option>
+                )}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="prayer-tracker__presets">
@@ -331,6 +369,19 @@ export default function PrayerTracker() {
                 <div className="prayer-tracker__tasbih-phrase">سُبْحانَ اللهِ</div>
               </div>
             </div>
+            {/* Authenticated Shia hadith on the virtue of this tasbih.
+                Shown under the count tiles so the congregation reads
+                WHY this dhikr is recited after every prayer, not just
+                what the counts are. Chain: Imam al-Sadiq via Zurarah
+                in al-Kafi vol. 3 p. 343. */}
+            <figure className="prayer-tracker__tasbih-hadith" aria-label="حديث شريف في فضل تسبيح الزهراء">
+              <blockquote className="prayer-tracker__tasbih-hadith-text">
+                «تَسْبِيحُ فاطِمَةَ الزَّهْراءِ عَلَيْها السَّلامُ في كُلِّ يَوْمٍ في دُبُرِ كُلِّ صَلاةٍ أَحَبُّ إِلَيَّ مِنْ صَلاةِ أَلْفِ رَكْعَةٍ في كُلِّ يَوْمٍ.»
+              </blockquote>
+              <figcaption className="prayer-tracker__tasbih-hadith-cite">
+                — الإمام جعفر الصادق عليه السلام · الكافي، ج٣ ص٣٤٣
+              </figcaption>
+            </figure>
           </div>
         )}
 

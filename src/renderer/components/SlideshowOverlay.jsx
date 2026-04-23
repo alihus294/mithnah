@@ -2,7 +2,7 @@
 // true; otherwise renders null. Driven entirely by the main-process state
 // machine; no local state besides an "enter" animation class.
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toArabicDigits } from '../lib/format.js';
 import {
   ImamiStar, ArabesqueCorner, AlayhiSalam, SalawatLine, StarPatternBg
@@ -53,6 +53,34 @@ export default function SlideshowOverlay({ state }) {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [state?.active, bumpScale]);
+  // Mouse-idle-aware close button. A 70-year-old caretaker using a
+  // mouse must ALWAYS have a visible exit affordance; keyboard Esc
+  // alone is not enough (operator feedback 2026-04-23). Button
+  // appears on any mouse movement inside the overlay and fades back
+  // out after 3 s of stillness so the dua text stays the focus.
+  const [chromeVisible, setChromeVisible] = useState(true);
+  const chromeTimerRef = useRef(null);
+  const revealChrome = useCallback(() => {
+    setChromeVisible(true);
+    if (chromeTimerRef.current) clearTimeout(chromeTimerRef.current);
+    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 3000);
+  }, []);
+  useEffect(() => {
+    if (!state?.active) return;
+    // Show on open for 4 s so the caretaker sees the button exists,
+    // then fade until the next mouse move.
+    setChromeVisible(true);
+    if (chromeTimerRef.current) clearTimeout(chromeTimerRef.current);
+    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 4000);
+    return () => {
+      if (chromeTimerRef.current) { clearTimeout(chromeTimerRef.current); chromeTimerRef.current = null; }
+    };
+  }, [state?.active]);
+
+  const onClose = useCallback(() => {
+    try { window.electron?.slideshow?.command?.('CLOSE'); } catch (_) {}
+  }, []);
+
   if (!state || !state.active) return null;
 
   const deck = state.deck || {};
@@ -72,13 +100,28 @@ export default function SlideshowOverlay({ state }) {
 
   return (
     <div
-      className="slideshow open"
+      className={`slideshow open ${chromeVisible ? 'slideshow--chrome-visible' : ''}`}
       dir="rtl"
       aria-live="polite"
       role="region"
       style={{ '--slideshow-font-scale': fontScale }}
+      onMouseMove={revealChrome}
+      onTouchStart={revealChrome}
     >
       <StarPatternBg opacity={0.04} />
+
+      {/* Exit button — pinned top-right (LTR → inset-inline-end), in
+          the auto-hiding chrome layer. Ensures every elderly mouse-
+          only operator sees a "way out" without needing Esc. */}
+      <button
+        type="button"
+        className="slideshow__close"
+        onClick={onClose}
+        aria-label="إغلاق العرض"
+        title="إغلاق العرض (Esc)"
+      >
+        ✕ إغلاق
+      </button>
 
       {/* Font-size buttons — top-left corner so they don't compete
           with the counter/hints footer. On-screen pair in case the

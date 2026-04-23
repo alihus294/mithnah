@@ -21,7 +21,17 @@ const TASBIH_ZAHRA = {
     { order: 3, count: 33, phrase: 'سُبْحانَ اللهِ',     phraseLatin: 'Subhan Allah',    meaning: 'Glory be to Allah' }
   ],
   totalCount: 100,
-  note: 'يُقرأ بعد كل صلاة واجبة، ويعدل سبعينَ تسبيحة في غيره. العدد ١٠٠ مرة بالترتيب المذكور: ٣٤ تكبيراً، ثم ٣٣ تحميداً، ثم ٣٣ تسبيحاً.'
+  note: 'يُقرأ بعد كل صلاة واجبة، ويعدل سبعينَ تسبيحة في غيره. العدد ١٠٠ مرة بالترتيب المذكور: ٣٤ تكبيراً، ثم ٣٣ تحميداً، ثم ٣٣ تسبيحاً.',
+  // Authenticated Shia hadith on the virtue of this tasbih. Shown on
+  // the tracker's tasbih stage so the congregation sees WHY this
+  // dhikr matters, not just the count. Chain: Imam al-Sadiq (عليه
+  // السلام) via Zurarah in al-Kafi, one of the four foundational
+  // Shia hadith collections.
+  virtue: {
+    text: 'تَسْبِيحُ فاطِمَةَ الزَّهْراءِ عَلَيْها السَّلامُ في كُلِّ يَوْمٍ في دُبُرِ كُلِّ صَلاةٍ أَحَبُّ إِلَيَّ مِنْ صَلاةِ أَلْفِ رَكْعَةٍ في كُلِّ يَوْمٍ.',
+    attribution: 'الإمام جعفر الصادق عليه السلام',
+    source: 'الكافي، الكليني، ج٣ ص٣٤٣'
+  }
 };
 
 module.exports = { TASBIH_ZAHRA };

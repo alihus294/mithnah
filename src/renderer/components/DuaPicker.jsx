@@ -16,7 +16,17 @@ import { useFocusTrap } from '../lib/useFocusTrap.js';
 // be re-localised between versions.
 const RECENTS_KEY = 'mithnah:dua-picker:recent';
 const FAVORITES_KEY = 'mithnah:dua-picker:favorites';
-const CUSTOM_DUAS_KEY = 'mithnah:dua-picker:custom';
+// Per-tab custom storage — the user can now add personal ziyarat
+// and taqibat too, not just duas (operator 2026-04-23 #8: "الزيارات
+// و التعقيبات ما فيهم طريقة للاضافة"). The legacy `:custom` key
+// (duas-only) is migrated into `:custom:duas` on first read so
+// nothing is lost.
+const CUSTOM_DUAS_LEGACY_KEY = 'mithnah:dua-picker:custom';
+const CUSTOM_KEYS = {
+  duas:    'mithnah:dua-picker:custom:duas',
+  ziyarat: 'mithnah:dua-picker:custom:ziyarat',
+  taqibat: 'mithnah:dua-picker:custom:taqibat',
+};
 // One-shot flag: shown as a welcome strip the FIRST time the library
 // opens. Dismissed automatically after the operator adds a dua or
 // clicks ×. Cleared from localStorage to show again requires manual
@@ -24,19 +34,47 @@ const CUSTOM_DUAS_KEY = 'mithnah:dua-picker:custom';
 const WELCOME_KEY = 'mithnah:dua-picker:welcomed';
 const RECENTS_LIMIT = 8;
 
-// Load / save the operator's custom duas. Each entry is
-// { id, title_ar, source, body }. The id prefix `custom:` makes them
-// easy to distinguish from bundled content.
-function loadCustomDuas() {
+// Load / save the operator's custom entries for a given tab. Each
+// entry is { id, title_ar, source, body }. The id prefix `custom:`
+// makes them easy to distinguish from bundled content.
+function loadCustomForTab(tab) {
   try {
-    const raw = localStorage.getItem(CUSTOM_DUAS_KEY);
+    const key = CUSTOM_KEYS[tab];
+    if (!key) return [];
+    const raw = localStorage.getItem(key);
+    // Migrate the pre-2026-04-23 single-bucket storage: anything in
+    // the legacy `:custom` key belongs to the duas tab.
+    if (!raw && tab === 'duas') {
+      const legacy = localStorage.getItem(CUSTOM_DUAS_LEGACY_KEY);
+      if (legacy) {
+        try {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) {
+            localStorage.setItem(key, legacy);
+            return parsed.filter((x) => x && typeof x === 'object' && typeof x.id === 'string');
+          }
+        } catch (_) { /* ignore legacy parse error */ }
+      }
+      return [];
+    }
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x === 'object' && typeof x.id === 'string') : [];
   } catch (_) { return []; }
 }
-function saveCustomDuas(list) {
-  try { localStorage.setItem(CUSTOM_DUAS_KEY, JSON.stringify(list.slice(0, 100))); } catch (_) {}
+function saveCustomForTab(tab, list) {
+  try {
+    const key = CUSTOM_KEYS[tab];
+    if (!key) return;
+    localStorage.setItem(key, JSON.stringify(list.slice(0, 100)));
+  } catch (_) {}
+}
+function loadAllCustom() {
+  return {
+    duas:    loadCustomForTab('duas'),
+    ziyarat: loadCustomForTab('ziyarat'),
+    taqibat: loadCustomForTab('taqibat'),
+  };
 }
 
 function loadIdList(key) {
@@ -104,7 +142,11 @@ export default function DuaPicker() {
   // sees Arabic titles.
   const [recents, setRecents] = useState(() => loadIdList(RECENTS_KEY));
   const [favorites, setFavorites] = useState(() => loadIdList(FAVORITES_KEY));
-  const [customDuas, setCustomDuas] = useState(loadCustomDuas);
+  // Per-tab custom storage. The F4 editor writes into whichever tab
+  // is active, so the caretaker can add زيارة مخصّصة or تعقيب مخصّص
+  // the same way they used to add adua.
+  const [customByTab, setCustomByTab] = useState(loadAllCustom);
+  const customCurrent = customByTab[tab] || [];
   const [welcomeShown, setWelcomeShown] = useState(() => {
     try { return localStorage.getItem(WELCOME_KEY) !== 'true'; } catch (_) { return true; }
   });
@@ -143,12 +185,12 @@ export default function DuaPicker() {
     return () => clearTimeout(h);
   }, [query]);
 
-  // Custom duas show up at the top of the duas tab alongside bundled
-  // ones. Other tabs keep the original list.
+  // Custom items show up at the top of the active tab alongside the
+  // bundled ones. Each tab has its own custom store (duas, ziyarat,
+  // taqibat).
   const mergedItems = useMemo(() => {
-    if (tab !== 'duas') return items;
-    return [...customDuas, ...items];
-  }, [tab, items, customDuas]);
+    return [...customCurrent, ...items];
+  }, [items, customCurrent]);
 
   const filteredItems = useMemo(() => {
     if (!debouncedQuery.trim()) return mergedItems;
@@ -263,78 +305,103 @@ export default function DuaPicker() {
     const title = (draft.title || '').trim().slice(0, 200);
     const body = (draft.body || '').trim().slice(0, 20000);
     if (!title || !body) { setMsg('الرجاء إدخال العنوان والنص'); return; }
+    // Scope the save to whichever tab is currently active.
+    const list = customByTab[tab] || [];
     const next = (() => {
-      const exists = customDuas.find((x) => x.id === id);
+      const exists = list.find((x) => x.id === id);
       const entry = { id, title_ar: title, source: 'مضاف من القائم', body };
-      if (exists) return customDuas.map((x) => (x.id === id ? entry : x));
-      return [entry, ...customDuas];
+      if (exists) return list.map((x) => (x.id === id ? entry : x));
+      return [entry, ...list];
     })();
-    setCustomDuas(next);
-    saveCustomDuas(next);
+    setCustomByTab({ ...customByTab, [tab]: next });
+    saveCustomForTab(tab, next);
     setEditor(null);
-    setMsg('تم حفظ الدعاء');
+    const savedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[tab] || 'العنصر';
+    setMsg(`تم حفظ ${savedLabel}`);
     dismissWelcome();
   };
   const deleteCustomDua = (id) => {
-    const next = customDuas.filter((x) => x.id !== id);
-    setCustomDuas(next);
-    saveCustomDuas(next);
+    const list = customByTab[tab] || [];
+    const next = list.filter((x) => x.id !== id);
+    setCustomByTab({ ...customByTab, [tab]: next });
+    saveCustomForTab(tab, next);
   };
 
-  // Export all custom duas as a single JSON file the operator can email
-  // to another mosque / backup before reinstalling Windows. Uses the
-  // DOM's anchor-download path so no main-process changes are needed.
+  // Export every tab's custom entries together in a single JSON
+  // file. Format widened 2026-04-23 to include ziyarat+taqibat
+  // alongside duas. Legacy `duas`-only files still import via the
+  // backwards-compatible loader below.
   const exportCustomDuas = () => {
-    if (customDuas.length === 0) {
-      setMsg('لا توجد أدعية مضافة للتصدير');
+    const totalCount = (customByTab.duas?.length || 0)
+                     + (customByTab.ziyarat?.length || 0)
+                     + (customByTab.taqibat?.length || 0);
+    if (totalCount === 0) {
+      setMsg('لا توجد عناصر مضافة للتصدير');
       return;
     }
     const payload = {
-      format: 'mithnah.custom-duas',
-      version: 1,
+      format: 'mithnah.custom-content',
+      version: 2,
       exportedAt: new Date().toISOString(),
-      duas: customDuas,
+      duas:    customByTab.duas || [],
+      ziyarat: customByTab.ziyarat || [],
+      taqibat: customByTab.taqibat || [],
     };
     try {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `mithnah-duas-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `mithnah-custom-${new Date().toISOString().slice(0, 10)}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMsg(`تم تصدير ${customDuas.length} دعاء`);
+      setMsg(`تم تصدير ${totalCount} عنصراً`);
     } catch (err) {
       setMsg('فشل التصدير: ' + err.message);
     }
   };
 
-  // Import custom duas from a previously-exported JSON file. Merges:
-  // existing IDs are kept (no clobber). Bad records are skipped; a
-  // summary message tells the operator how many were added.
+  // Import custom entries from a previously-exported JSON file.
+  // Accepts BOTH the new v2 multi-tab format and the legacy v1
+  // duas-only format. Merges per-tab: existing IDs are kept.
   const importCustomDuas = async (file) => {
     if (!file) return;
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!data || data.format !== 'mithnah.custom-duas' || !Array.isArray(data.duas)) {
-        setMsg('الملف ليس تصديراً صالحاً لأدعية مئذنة');
+      if (!data || typeof data !== 'object') {
+        setMsg('الملف ليس تصديراً صالحاً');
         return;
       }
-      const existing = new Set(customDuas.map((d) => d.id));
-      const incoming = data.duas.filter((d) =>
-        d && typeof d === 'object' &&
+      const isV2 = data.format === 'mithnah.custom-content';
+      const isV1 = data.format === 'mithnah.custom-duas';
+      if (!isV2 && !isV1) {
+        setMsg('الملف ليس تصديراً صالحاً لمئذنة');
+        return;
+      }
+      const isValid = (d) => d && typeof d === 'object' &&
         typeof d.id === 'string' && d.id.startsWith('custom:') &&
-        typeof d.title_ar === 'string' && typeof d.body === 'string'
-      );
-      const added = incoming.filter((d) => !existing.has(d.id));
-      const next = [...added, ...customDuas];
-      setCustomDuas(next);
-      saveCustomDuas(next);
-      const skipped = incoming.length - added.length;
-      setMsg(`تمّت إضافة ${added.length} دعاء${skipped > 0 ? ` (تخطيت ${skipped} موجود مسبقاً)` : ''}`);
+        typeof d.title_ar === 'string' && typeof d.body === 'string';
+      const incomingByTab = {
+        duas:    isV2 ? (Array.isArray(data.duas)    ? data.duas.filter(isValid)    : []) : (data.duas || []).filter(isValid),
+        ziyarat: isV2 && Array.isArray(data.ziyarat) ? data.ziyarat.filter(isValid) : [],
+        taqibat: isV2 && Array.isArray(data.taqibat) ? data.taqibat.filter(isValid) : [],
+      };
+      let addedTotal = 0, skippedTotal = 0;
+      const nextByTab = { ...customByTab };
+      for (const t of ['duas', 'ziyarat', 'taqibat']) {
+        const existing = new Set((customByTab[t] || []).map((d) => d.id));
+        const added = (incomingByTab[t] || []).filter((d) => !existing.has(d.id));
+        const skipped = (incomingByTab[t] || []).length - added.length;
+        addedTotal += added.length;
+        skippedTotal += skipped;
+        nextByTab[t] = [...added, ...(customByTab[t] || [])];
+        saveCustomForTab(t, nextByTab[t]);
+      }
+      setCustomByTab(nextByTab);
+      setMsg(`تمّت إضافة ${addedTotal} عنصراً${skippedTotal > 0 ? ` (تخطيت ${skippedTotal} موجود مسبقاً)` : ''}`);
     } catch (err) {
       setMsg('فشل الاستيراد: ' + err.message);
     }
@@ -381,7 +448,7 @@ export default function DuaPicker() {
           <div className="dua-picker__welcome" role="note">
             <span>
               <strong>مرحباً بمكتبتك.</strong>
-              {' '}الأدعية المضافة من طرفك تظهر هنا بجانب الأدعية المُرفقة مع التطبيق. اضغط «➕ إضافة دعاء» لتبدأ.
+              {' '}الأدعية والزيارات والتعقيبات المضافة من طرفك تظهر هنا بجانب المحتوى المُرفق مع التطبيق. اضغط «➕ إضافة» لتبدأ.
             </span>
             <button
               type="button"
@@ -400,28 +467,36 @@ export default function DuaPicker() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {tab === 'duas' && (
-            <>
+          {/* Add/Export/Import available on every tab — the caretaker
+              can now build custom زيارات and تعقيبات the same way they
+              used to only add دعاء (operator 2026-04-23 #8). Labels
+              shift with the active tab so nothing says "إضافة دعاء"
+              on the ziyarat tab. */}
+          {(() => {
+            const singularLabel = { duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر';
+            const pluralLabel   = { duas: 'الأدعية', ziyarat: 'الزيارات', taqibat: 'التعقيبات' }[tab] || 'العناصر';
+            return (
+              <>
               <button
                 type="button"
                 className="dua-picker__add-btn"
                 onClick={() => setEditor({ id: '', title: '', body: '' })}
-                title="أضف دعاءك الخاص — يُحفظ على هذا الجهاز فقط"
+                title={`أضف ${singularLabel} من طرفك — يُحفظ على هذا الجهاز فقط`}
               >
-                ➕ إضافة دعاء
+                ➕ إضافة {singularLabel}
               </button>
               <button
                 type="button"
                 className="dua-picker__secondary-btn"
                 onClick={exportCustomDuas}
-                title="حفظ أدعيتك المضافة في ملف — لنقلها إلى جهاز آخر أو للحفظ الاحتياطي"
-                disabled={customDuas.length === 0}
+                title={`حفظ ${pluralLabel} المضافة في ملف — لنقلها إلى جهاز آخر أو للحفظ الاحتياطي`}
+                disabled={(customByTab.duas?.length || 0) + (customByTab.ziyarat?.length || 0) + (customByTab.taqibat?.length || 0) === 0}
               >
                 ⇩ تصدير
               </button>
               <label
                 className="dua-picker__secondary-btn"
-                title="جلب أدعية من ملف تصدير سابق"
+                title="جلب عناصر من ملف تصدير سابق"
               >
                 ⇧ استيراد
                 <input
@@ -436,7 +511,8 @@ export default function DuaPicker() {
                 />
               </label>
             </>
-          )}
+            );
+          })()}
         </div>
 
         {msg && (
@@ -560,6 +636,7 @@ export default function DuaPicker() {
       {editor && (
         <CustomDuaEditor
           initial={editor}
+          tab={tab}
           onCancel={() => setEditor(null)}
           onSave={saveCustomDua}
         />
@@ -573,15 +650,17 @@ export default function DuaPicker() {
 // Simple title + body form. Kept inside DuaPicker.jsx because it's the
 // only place that uses it; extracting to its own file would add more
 // import churn than it saves.
-function CustomDuaEditor({ initial, onCancel, onSave }) {
+function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [body, setBody]   = useState(initial?.body  || '');
   const onKeyDown = (e) => { if (e.key === 'Escape') onCancel(); };
+  const singular    = { duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر';
+  const placeholder = { duas: 'مثال: دعاء الفرج', ziyarat: 'مثال: زيارة الأربعين المختصرة', taqibat: 'مثال: تعقيب صلاة الفجر' }[tab] || 'العنوان';
   return (
     <div className="inline-modal" role="dialog" aria-modal="true" dir="rtl" onKeyDown={onKeyDown}>
       <div className="inline-modal__bg" onClick={onCancel} />
       <div className="inline-modal__card inline-modal__card--wide">
-        <div className="inline-modal__title">{initial?.id ? 'تعديل دعاء' : 'إضافة دعاء'}</div>
+        <div className="inline-modal__title">{initial?.id ? `تعديل ${singular}` : `إضافة ${singular}`}</div>
         <div className="inline-modal__subtitle">يُحفظ على هذا الجهاز فقط — لن يُنقل إلى أجهزة أخرى.</div>
         <div className="inline-modal__field">
           <label className="inline-modal__label">العنوان</label>
@@ -590,7 +669,7 @@ function CustomDuaEditor({ initial, onCancel, onSave }) {
             className="inline-modal__input"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="مثال: دعاء الفرج"
+            placeholder={placeholder}
             maxLength={200}
             autoFocus
           />
@@ -601,7 +680,7 @@ function CustomDuaEditor({ initial, onCancel, onSave }) {
             className="inline-modal__input inline-modal__textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="اكتب أو الصق نص الدعاء بالكامل هنا..."
+            placeholder={`اكتب أو الصق نص ${singular === 'دعاء' ? 'الدعاء' : singular === 'زيارة' ? 'الزيارة' : 'التعقيب'} بالكامل هنا...`}
             rows={10}
           />
         </div>

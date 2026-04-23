@@ -19,6 +19,7 @@ import { useModalActive } from '../lib/useModalActive.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
 import UpdateSection from './UpdateSection.jsx';
+import ImamListEditor from './ImamListEditor.jsx';
 
 const CITIES = [
   { id: 'najaf',       nameAr: 'النجف',      lat: 32.0256, lng: 44.3269 },
@@ -936,7 +937,7 @@ export default function SettingsOverlay() {
               />
             </Field>
 
-            <Field label="اسم الإمام" hint="يظهر في شاشة متابعة الصلاة (F5) ليعرف الجمهور من يصلّي بهم.">
+            <Field label="اسم الإمام الحالي" hint="يظهر في شاشة متابعة الصلاة (F5) ليعرف الجمهور من يصلّي بهم.">
               <input
                 type="text" className="settings__input"
                 value={config.imamName || ''}
@@ -944,6 +945,17 @@ export default function SettingsOverlay() {
                 onBlur={commitImamName}
                 maxLength={120}
                 placeholder="مثال: الشيخ محمد البوعلي"
+              />
+            </Field>
+
+            <Field
+              label="قائمة الأئمة"
+              hint="أضف الأئمة الذين يتناوبون على الإمامة في المسجد. ستظهر قائمة منسدلة داخل متابعة الصلاة (F5) لاختيار الإمام الحاضر فوراً بدون كتابة اسمه في كلّ صلاة."
+            >
+              <ImamListEditor
+                list={Array.isArray(config.imamList) ? config.imamList : []}
+                currentName={config.imamName || ''}
+                onChange={(nextList) => apply({ imamList: nextList }, 'info', 'قائمة الأئمة محفوظة')}
               />
             </Field>
 

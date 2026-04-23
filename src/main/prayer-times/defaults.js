@@ -113,6 +113,7 @@ function defaultConfig(lat = 32.0256, lng = 44.3269) {
     // rakah they've reached. Free text; the technician sets it once
     // and updates if the imam changes.
     imamName: '',
+    imamList: [],
     features: defaultFeatures()
   };
 }
