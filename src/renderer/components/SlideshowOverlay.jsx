@@ -33,10 +33,17 @@ import { useModalActive } from '../lib/useModalActive.js';
 function repaginate(slides, fontScale) {
   if (!Array.isArray(slides) || slides.length === 0) return [];
   const scale = Math.max(0.7, Math.min(2.2, Number(fontScale) || 1));
-  // 1.0× keeps chunker's defaults; larger scales tighten aggressively.
-  const maxLines = Math.max(1, Math.round(2 / scale));
-  const maxChars = Math.max(20, Math.round(90 / scale));
-  const wrapChars = Math.max(16, Math.round(70 / scale));
+  // Operator 2026-04-24: "شيل حد الاسطر المسموح فيه في كل صفحة"
+  // The previous maxLines=max(1, round(2/scale)) artificially capped
+  // every page at 2 verse-lines even when 5-6 could fit — leaving
+  // the top and bottom of the frame visibly empty on real pages.
+  // New scheme: drop the line limit entirely, rely only on a
+  // character budget that scales inversely with font size. Each
+  // page fills until cumulative chars would overflow the visual
+  // area, then flushes.
+  const maxLines = 999;           // effectively unlimited
+  const maxChars = Math.max(40, Math.round(340 / scale)); // 1.0x=340, 1.5x=227, 2.0x=170
+  const wrapChars = Math.max(20, Math.round(75 / scale)); // single-line word-wrap threshold
   const out = [];
   // Tag each output entry with its `baseIdx` (position in the
   // original slides array) so the renderer can map back to the
