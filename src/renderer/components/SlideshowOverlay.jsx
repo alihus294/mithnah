@@ -33,17 +33,21 @@ import { useModalActive } from '../lib/useModalActive.js';
 function repaginate(slides, fontScale) {
   if (!Array.isArray(slides) || slides.length === 0) return [];
   const scale = Math.max(0.7, Math.min(2.2, Number(fontScale) || 1));
-  // Operator 2026-04-24: "شيل حد الاسطر المسموح فيه في كل صفحة"
-  // The previous maxLines=max(1, round(2/scale)) artificially capped
-  // every page at 2 verse-lines even when 5-6 could fit — leaving
-  // the top and bottom of the frame visibly empty on real pages.
-  // New scheme: drop the line limit entirely, rely only on a
-  // character budget that scales inversely with font size. Each
-  // page fills until cumulative chars would overflow the visual
-  // area, then flushes.
-  const maxLines = 999;           // effectively unlimited
-  const maxChars = Math.max(40, Math.round(340 / scale)); // 1.0x=340, 1.5x=227, 2.0x=170
-  const wrapChars = Math.max(20, Math.round(75 / scale)); // single-line word-wrap threshold
+  // Operator 2026-04-24 (with screenshots): text was clipping at top
+  // and bottom of the frame because the per-page budget of 340 chars
+  // packed 3–5 verse lines — and each verse line VISUALLY wraps to
+  // 2 rows at typical 1920 width + default font, so the actual
+  // visual-row count ballooned beyond the body container's height.
+  // Tightened budget to target 2–3 verse lines per page (4–6 visual
+  // rows) which fits inside the ~880 px body row at line-height 1.55.
+  const maxLines = 999;
+  const maxChars = Math.max(40, Math.round(200 / scale)); // 1.0x=200, 1.5x=133, 2.0x=100
+  // Disable pre-wrap of long single lines entirely — CSS word-wrap
+  // handles visual overflow naturally and fragmented wraps were
+  // what made pages look uneven ("كلمتين في سطر وتحته ٧ كلمات").
+  // A 999 threshold means wrapLongLine is a no-op; the whole verse
+  // passes through as-is and CSS does the visual line-break.
+  const wrapChars = 999;
   const out = [];
   // Tag each output entry with its `baseIdx` (position in the
   // original slides array) so the renderer can map back to the

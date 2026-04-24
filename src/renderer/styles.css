@@ -687,9 +687,12 @@ html[data-large-text="true"] .masthead__logo {
   padding: 0 clamp(8px, 0.8vw, 20px);
   text-align: center;
   font-family: var(--m-font-quranic);
-  /* Generous leading for elderly readability; 2-line pages (the new
-   * chunker default) give each line plenty of vertical room. */
-  line-height: 1.72;
+  /* Tightened 1.72 → 1.55 so more visual rows fit per page without
+   * overflowing the body container. Still safe for Arabic ascenders
+   * (أ ك) and descenders (ج ط) because the Amiri Scheherazade font
+   * has built-in metrics for diacritics — the older 1.72 was a
+   * carry-over from a different Quranic face. */
+  line-height: 1.55;
   color: var(--m-text-primary);
   font-weight: 400;
   direction: rtl;
