@@ -167,7 +167,18 @@ input, textarea, [contenteditable="true"] {
 
 .dashboard__grid {
   position: absolute;
-  inset: 60px 90px 60px;
+  /* Operator 2026-04-24 asked how to reclaim wasted space on the
+   * Dashboard WITHOUT losing the frame aesthetic. The arabesque
+   * corners sit at inset:26 and the corner stars at inset:14 —
+   * the grid insets of 60/90 were leaving ~30/64 px of dead band
+   * inside the corner ring. Tightened to clamp(36, 3vw, 72) side
+   * and clamp(40, 3.5vh, 60) top/bottom so content on 1920 reaches
+   * ~58/48 px from the viewport edge (still clear of corners) and
+   * scales down gracefully on 1024 without the corners shrinking
+   * unpredictably. */
+  top: clamp(40px, 3.5vh, 60px);
+  bottom: clamp(40px, 3.5vh, 60px);
+  inset-inline: clamp(36px, 3vw, 72px);
   display: grid;
   /* `minmax(0, 1fr)` (instead of plain `1fr`) so row 2 can ACTUALLY
    * shrink when the auto rows take more than expected — without it,
@@ -180,10 +191,9 @@ input, textarea, [contenteditable="true"] {
   transition: inset 220ms ease;
 }
 /* Push the grid below the announcement banner when it's active, so the
- * masthead doesn't collide with the ~66px scrolling strip. Activated
- * by the React layer via class `.dashboard--with-banner`. */
+ * masthead doesn't collide with the ~66px scrolling strip. */
 .dashboard--with-banner .dashboard__grid {
-  inset: 84px 90px 60px;
+  top: clamp(64px, 6vh, 84px);
 }
 
 /* ── ZONE 1 · header ─────────────────────────────────────────────────── */
@@ -225,7 +235,10 @@ html[data-large-text="true"] .masthead__logo {
 }
 .masthead__title {
   font-family: var(--m-font-display);
-  font-size: clamp(22px, 1.9vw, 36px);
+  /* Ceilings bumped 2026-04-24 wasted-space pass: 36 px was lost in
+   * a masthead that has room for 60 px on a 1920 wall. floor 22→28
+   * so 1080 reads as masthead-scale, not footnote. */
+  font-size: clamp(28px, 2.6vw, 56px);
   font-weight: 400;
   letter-spacing: 0.02em;
   background: linear-gradient(180deg, var(--m-accent-bright) 0%, var(--m-accent) 100%);
@@ -239,7 +252,7 @@ html[data-large-text="true"] .masthead__logo {
 }
 .dashboard__hijri {
   font-family: var(--m-font-quranic);
-  font-size: clamp(22px, 2.1vw, 42px);
+  font-size: clamp(26px, 2.4vw, 50px);
   color: var(--m-accent);
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -251,7 +264,7 @@ html[data-large-text="true"] .masthead__logo {
 }
 .dashboard__greg {
   font-family: var(--m-font-body);
-  font-size: clamp(16px, 1.15vw, 24px);
+  font-size: clamp(18px, 1.35vw, 30px);
   color: var(--m-text-muted);
   letter-spacing: 0.04em;
 }
@@ -295,10 +308,13 @@ html[data-large-text="true"] .masthead__logo {
 
 .clock {
   font-family: var(--m-font-numeral);
-  /* Upper bound trimmed from 320 → 280 so the clock doesn't starve
-   * the next-prayer block underneath on 1080p screens. Lower bound
-   * unchanged. */
-  font-size: clamp(160px, 14.8vw, 280px);
+  /* Widened 2026-04-24 wasted-space pass: with the grid insets now
+   * responsive (clamp 36-72) the clock has ~60 px more horizontal
+   * on 1920 and ~120 px on 4K. Ceiling raised 280 → 320 so 4K
+   * walls get a commanding clock without starving next-prayer on
+   * 1080 where the vw cap keeps it at ~284 px. Floor 160 → 180
+   * so 1024 also reads as a hero. */
+  font-size: clamp(180px, 15vw, 320px);
   line-height: 0.95;
   font-weight: 400;
   color: var(--m-text-primary);
@@ -344,24 +360,23 @@ html[data-large-text="true"] .masthead__logo {
 }
 .next__name {
   font-family: var(--m-font-display);
-  font-size: clamp(38px, 3.5vw, 68px);
+  font-size: clamp(44px, 4vw, 84px);
   color: var(--m-accent-bright);
   font-weight: 400; line-height: 1;
 }
 .next__time {
   font-family: var(--m-font-numeral);
-  font-size: clamp(48px, 4.5vw, 92px);
+  font-size: clamp(56px, 5.2vw, 112px);
   color: var(--m-text-primary);
   font-weight: 400; line-height: 1;
   font-feature-settings: 'tnum' 1;
 }
 .next__countdown {
   font-family: var(--m-font-display);
-  /* Sized to be readable from the back of the hall — roughly a
-   * quarter of the clock height, well above the tiny 20px ceiling
-   * it used to have. The operator said the remaining-time strip
-   * was "invisible" in real use; this fixes the visibility. */
-  font-size: clamp(26px, 2.4vw, 48px);
+  /* Countdown has to read across a prayer hall — grew 26→30 floor
+   * and 48→58 ceiling so it matches the scale of the next-prayer
+   * name above it. */
+  font-size: clamp(30px, 2.8vw, 58px);
   color: var(--m-accent);
   margin-top: 14px;
   font-feature-settings: 'tnum' 1;
@@ -476,11 +491,14 @@ html[data-large-text="true"] .masthead__logo {
 .prayer-row {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 10px;
+  /* Gap scaled with viewport so on 1920+ the cells breathe while
+   * 1024 keeps them tight. 10 px fixed was one of the few hard-
+   * pixel leaks left on the Dashboard. */
+  gap: clamp(8px, 0.8vw, 18px);
 }
 .prayer-cell {
   position: relative;
-  padding: 18px 14px 20px;
+  padding: clamp(14px, 1.4vw, 28px) clamp(10px, 1vw, 20px) clamp(16px, 1.5vw, 30px);
   text-align: center;
   background: rgba(245, 236, 210, 0.02);
   border: 1px solid var(--m-hairline-faint);
@@ -502,15 +520,15 @@ html[data-large-text="true"] .masthead__logo {
 }
 .prayer-cell__name {
   font-family: var(--m-font-display);
-  font-size: clamp(18px, 1.5vw, 30px);
+  font-size: clamp(22px, 1.9vw, 38px);
   line-height: 1;
   color: var(--m-text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: clamp(6px, 0.8vw, 14px);
 }
 .prayer-cell--next .prayer-cell__name { color: var(--m-accent-bright); }
 .prayer-cell__time {
   font-family: var(--m-font-numeral);
-  font-size: clamp(26px, 2.25vw, 46px);
+  font-size: clamp(30px, 2.6vw, 54px);
   line-height: 1;
   color: var(--m-text-primary);
   font-feature-settings: 'tnum' 1;
@@ -3122,13 +3140,16 @@ html[data-large-text="true"] .masthead__logo {
 html[data-large-text="true"] {
   font-size: 18px; /* base; rem-scaled controls inherit */
 }
-html[data-large-text="true"] .clock { font-size: clamp(180px, 14vw, 280px); }
-html[data-large-text="true"] .masthead__title { font-size: clamp(48px, 4vw, 90px); }
-html[data-large-text="true"] .next__name,
-html[data-large-text="true"] .next__time { font-size: clamp(34px, 3.2vw, 60px); }
-html[data-large-text="true"] .prayer-cell__name { font-size: clamp(20px, 1.7vw, 32px); }
-html[data-large-text="true"] .prayer-cell__time { font-size: clamp(28px, 2.2vw, 44px); }
-html[data-large-text="true"] .event-strip__title { font-size: clamp(22px, 1.8vw, 34px); }
+html[data-large-text="true"] .clock { font-size: clamp(200px, 16vw, 340px); }
+html[data-large-text="true"] .masthead__title { font-size: clamp(34px, 3vw, 68px); }
+html[data-large-text="true"] .next__name { font-size: clamp(52px, 4.6vw, 96px); }
+html[data-large-text="true"] .next__time { font-size: clamp(64px, 5.8vw, 128px); }
+html[data-large-text="true"] .next__countdown { font-size: clamp(34px, 3.2vw, 66px); }
+html[data-large-text="true"] .dashboard__hijri { font-size: clamp(30px, 2.8vw, 58px); }
+html[data-large-text="true"] .dashboard__greg { font-size: clamp(22px, 1.6vw, 36px); }
+html[data-large-text="true"] .prayer-cell__name { font-size: clamp(26px, 2.2vw, 44px); }
+html[data-large-text="true"] .prayer-cell__time { font-size: clamp(34px, 3vw, 60px); }
+html[data-large-text="true"] .event-strip__title { font-size: clamp(26px, 2.1vw, 40px); }
 html[data-large-text="true"] .settings__label { font-size: 22px; }
 html[data-large-text="true"] .settings__hint { font-size: 17px; }
 html[data-large-text="true"] .settings__btn { font-size: 18px; min-height: 56px; padding: 14px 22px; }
