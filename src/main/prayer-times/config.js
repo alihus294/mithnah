@@ -131,22 +131,36 @@ function coerce(obj) {
     })(),
     // Operator-managed roster of imams. Each entry is a plain string
     // (name only — no credentials or roles since Shia protocol
-    // doesn't distinguish among those). Caps at 40 to keep the F5
-    // dropdown usable; dedupes case-insensitively so typos don't
-    // spawn duplicate rows.
+    // doesn't distinguish among those). Caps at 40 entries AND a
+    // hard ~16 KB aggregate byte budget, to stop a malicious or
+    // buggy renderer from shipping gigantic strings (each entry is
+    // already bounded to 120 chars, but a 2-byte-per-char UTF-8
+    // worst case × 40 × 120 = ~10 KB — this adds a belt-and-braces
+    // stop). Dedupes case-insensitively so typos don't spawn
+    // duplicate rows.
     imamList: (() => {
       const raw = Array.isArray(obj?.imamList) ? obj.imamList : [];
       const seen = new Set();
       const out = [];
+      const MAX_ENTRIES = 40;
+      const MAX_TOTAL_BYTES = 16 * 1024;
+      let totalBytes = 0;
       for (const v of raw) {
         if (typeof v !== 'string') continue;
         const s = v.trim().slice(0, 120);
         if (!s) continue;
         const k = s.toLowerCase();
         if (seen.has(k)) continue;
+        // Worst-case UTF-8 is 4 bytes/char but Arabic sits at ~2.
+        // Using Buffer.byteLength via TextEncoder would be more
+        // precise but adds an allocation per iteration; a 4× cap
+        // is overkill-safe without the overhead.
+        const byteGuess = s.length * 4;
+        if (totalBytes + byteGuess > MAX_TOTAL_BYTES) break;
+        totalBytes += byteGuess;
         seen.add(k);
         out.push(s);
-        if (out.length >= 40) break;
+        if (out.length >= MAX_ENTRIES) break;
       }
       return out;
     })(),

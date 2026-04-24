@@ -111,7 +111,9 @@ export default function SlideshowOverlay({ state }) {
     // Ask the browser to lay out fontScale's effect first, then
     // measure. rAF guarantees we read after commit.
     let cancelled = false;
+    let scheduled = 0;
     const measure = () => {
+      scheduled = 0;
       if (cancelled) return;
       const container = bodyRef.current;
       const content = contentRef.current;
@@ -126,16 +128,29 @@ export default function SlideshowOverlay({ state }) {
       // 0.98 = 2% safety margin so tall glyph ascenders never kiss
       // the body boundary during font-scale transitions.
       const needed = (availableH * 0.98) / intrinsicH;
-      const next = Math.max(0.4, Math.min(1, needed));
+      // Floor at 0.55 — any lower and the 52-120px base font drops
+      // below ~29-66px (presbyopia-critical range). If the content
+      // still doesn't fit at 0.55, the CSS overflow:hidden safety
+      // net clips it rather than rendering the text unreadably
+      // small. Caretaker can always reduce their Ctrl+/- scale.
+      const next = Math.max(0.55, Math.min(1, needed));
       setFitScale((prev) => Math.abs(next - prev) > 0.005 ? next : prev);
     };
-    const raf = requestAnimationFrame(measure);
-    const onResize = () => { requestAnimationFrame(measure); };
-    window.addEventListener('resize', onResize);
+    // Single-flight rAF queue: coalesces rapid fire (window drag,
+    // multiple listeners firing within the same tick) into one
+    // measurement per frame. Previous version booked a fresh rAF
+    // per resize event, which during a live window drag stacked
+    // dozens of redundant layout reads per second.
+    const schedule = () => {
+      if (scheduled || cancelled) return;
+      scheduled = requestAnimationFrame(measure);
+    };
+    schedule();
+    window.addEventListener('resize', schedule);
     return () => {
       cancelled = true;
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', onResize);
+      if (scheduled) cancelAnimationFrame(scheduled);
+      window.removeEventListener('resize', schedule);
     };
     // fitScale INTENTIONALLY omitted from the dep list — the effect
     // reads intrinsicH (which doesn't depend on the applied scale)

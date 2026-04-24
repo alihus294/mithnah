@@ -863,7 +863,11 @@ html[data-large-text="true"] .masthead__logo {
 .slideshow__source {
   font-size: clamp(13px, 1vw, 18px);
   color: var(--m-text-muted);
-  text-align: right;
+  /* `text-align: start` respects the slideshow's dir="rtl": the
+   * source snippet hugs the right edge on Arabic decks (the
+   * natural leading edge) instead of the left, which reads as an
+   * LTR artefact. */
+  text-align: start;
   max-width: 42%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -882,7 +886,11 @@ html[data-large-text="true"] .masthead__logo {
   font-size: clamp(13px, 0.95vw, 18px);
   color: var(--m-text-secondary);
   letter-spacing: 0.06em;
-  text-align: left;
+  /* Logical end — hints hug the trailing edge in RTL (visually
+   * left in Arabic), which balances the source snippet on the
+   * leading edge. Previously `text-align: left` was the literal
+   * LTR value and read wrong when the dashboard swapped to RTL. */
+  text-align: end;
   font-family: var(--m-font-body);
   max-width: 42%;
 }
@@ -2346,7 +2354,18 @@ html[data-large-text="true"] .masthead__logo {
   transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
 }
 .prayer-tracker__nav-btn:hover { background: rgba(226, 183, 106, 0.22); transform: translateY(-1px); }
-.prayer-tracker__nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.prayer-tracker__nav-btn:disabled {
+  /* Heavier affordance 2026-04-24: opacity 0.4 alone didn't read as
+   * "unavailable" for elderly eyes on a dimly-lit hall display —
+   * caretakers kept tapping the disabled first/last rakah button.
+   * Grayscale kills the accent gold entirely, and a 1.5 px solid
+   * border replaces the dashed token so the button reads inert. */
+  opacity: 0.35;
+  filter: grayscale(1);
+  cursor: not-allowed;
+  transform: none;
+  border-style: solid;
+}
 .prayer-tracker__nav-btn--primary {
   background: var(--m-accent);
   color: var(--m-bg-base);
@@ -2884,15 +2903,24 @@ html[data-large-text="true"] .masthead__logo {
 /* Destructive item (إغلاق التطبيق). Visually separated with a divider
  * above and a muted red tint so an accidental click is less likely. */
 .floating-menu__item--danger {
-  margin-top: 6px;
-  padding-top: 14px;
-  border-top: 1px solid var(--m-hairline-faint);
+  margin-top: 10px;
+  padding-top: 16px;
+  /* Stronger visual separation from the regular-action group: a
+   * solid 2 px red-tinted border (was a 1 px grey hairline) plus
+   * a persistent colored border around the whole item so the
+   * destructive action reads as "different" before the operator
+   * even hovers. Rationale: elderly caretaker on a wall display
+   * mistaking it for "another menu item" has triggered unintended
+   * app closes in the field. */
+  border-top: 2px solid rgba(255, 107, 88, 0.45);
+  border: 1px solid rgba(255, 107, 88, 0.28);
   color: #ff8b7a;
-  border-radius: 8px;
+  border-radius: 10px;
+  font-weight: 500;
 }
 .floating-menu__item--danger:hover {
-  background: rgba(255, 107, 88, 0.10);
-  border-color: rgba(255, 107, 88, 0.35);
+  background: rgba(255, 107, 88, 0.14);
+  border-color: rgba(255, 107, 88, 0.55);
   color: #ffb3a6;
 }
 
@@ -2936,7 +2964,10 @@ html[data-large-text="true"] .masthead__logo {
  * each stored imam with a remove-✕ and a highlighted "current" badge
  * where the name matches config.imamName. Empty list renders a hint
  * pointing the caretaker at the input below. */
-.imam-list-editor { display: flex; flex-direction: column; gap: 8px; }
+.imam-list-editor { display: flex; flex-direction: column; gap: var(--m-space-sm); }
+.imam-list-editor__empty {
+  padding: var(--m-space-xs) 0 var(--m-space-sm);
+}
 .imam-list-editor__list {
   list-style: none;
   margin: 0;

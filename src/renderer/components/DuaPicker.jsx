@@ -375,6 +375,16 @@ export default function DuaPicker() {
   const importCustomDuas = async (file) => {
     if (!file) return;
     try {
+      // Cap at 5 MB — a legitimate custom-content export is at most
+      // a few hundred KB (100 duas + 100 ziyarat + 100 taqibat, each
+      // bounded to 20 KB body). Reject anything larger before the
+      // renderer tries to JSON.parse a megabyte of random bytes and
+      // freezes (reported by the security audit, not yet seen in
+      // the field but cheap to prevent).
+      if (file.size > 5 * 1024 * 1024) {
+        setMsg('حجم الملف يتجاوز ٥ ميجا — ملفّات التصدير الشرعية أصغر بكثير');
+        return;
+      }
       const text = await file.text();
       const data = JSON.parse(text);
       if (!data || typeof data !== 'object') {

@@ -1930,7 +1930,12 @@ ipcMain.handle('app:remove-logo', async (event) => {
 // Return the logo as a data URL for <img src="...">. null when no
 // logo has been uploaded. Using a data URL (not file://) dodges
 // Electron's webSecurity/file-access quirks on packaged builds.
-ipcMain.handle('app:get-logo', async () => {
+// Guarded with the same isFromMainWindow check as upload/remove for
+// defense-in-depth consistency — if a future iframe or webview is
+// added, a compromised surface shouldn't be able to sniff the logo
+// out over IPC.
+ipcMain.handle('app:get-logo', async (event) => {
+  if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
   try {
     const buf = await fsp.readFile(LOGO_PATH);
     return { ok: true, data: 'data:image/png;base64,' + buf.toString('base64') };

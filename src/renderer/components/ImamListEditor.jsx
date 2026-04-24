@@ -33,7 +33,7 @@ export default function ImamListEditor({ list, currentName, onChange }) {
   return (
     <div className="imam-list-editor">
       {list.length === 0 && (
-        <div className="settings__hint" style={{ padding: '4px 0 10px' }}>
+        <div className="settings__hint imam-list-editor__empty">
           لا يوجد أئمة محفوظون بعد. أضف اسماً أدناه — ستظهر قائمة الاختيار في F5 بعد أوّل إدخال.
         </div>
       )}

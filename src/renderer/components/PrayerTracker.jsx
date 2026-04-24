@@ -90,6 +90,7 @@ export default function PrayerTracker() {
   // "الشيخ فلان" every prayer.
   const [imamName, setImamName] = useState('');
   const [imamList, setImamList] = useState([]);
+  const [imamSaveError, setImamSaveError] = useState('');
   // Tell main to STOP swallowing arrow keys while this tracker is
   // visible — without this, an active slideshow underneath would
   // capture arrows before they reach our keydown handler below.
@@ -287,8 +288,20 @@ export default function PrayerTracker() {
                 value={imamName || ''}
                 onChange={(e) => {
                   const name = e.target.value;
-                  setImamName(name); // optimistic
-                  setConfig({ imamName: name }).catch(() => {});
+                  const prev = imamName;
+                  setImamName(name); // optimistic paint
+                  // If the IPC write fails (config.json locked by
+                  // antivirus, transient disk error), revert the
+                  // optimistic value and surface an error so the
+                  // operator isn't left staring at a UI-only change
+                  // that never reached the wall. Previously the
+                  // .catch(()=>{}) silently swallowed failures.
+                  setConfig({ imamName: name }).catch((err) => {
+                    setImamName(prev);
+                    console.error('[PrayerTracker] imam write failed:', err);
+                    setImamSaveError('تعذّر حفظ اختيار الإمام — حاول مرة أخرى');
+                    setTimeout(() => setImamSaveError(''), 4000);
+                  });
                 }}
               >
                 <option value="">— اختر الإمام —</option>
@@ -302,6 +315,11 @@ export default function PrayerTracker() {
                   <option key={imamName} value={imamName}>{imamName} (غير محفوظ)</option>
                 )}
               </select>
+              {imamSaveError && (
+                <span className="prayer-tracker__imam-picker-error" role="status">
+                  {imamSaveError}
+                </span>
+              )}
             </div>
           )}
         </div>
