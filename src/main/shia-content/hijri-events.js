@@ -45,6 +45,7 @@ const ALL = [
   // --- رجب ---
   { id: 'imam-baqir-birth',   month: 7, day: 1,  kind: 'wiladah',    figure: 'الإمام الباقر عليه السلام',  title_ar: 'مولد الإمام محمد الباقر عليه السلام',       description_ar: 'مولد الإمام الخامس من أئمة أهل البيت عليهم السلام.' },
   { id: 'imam-hadi-birth',    month: 7, day: 2,  kind: 'wiladah',    figure: 'الإمام الهادي عليه السلام',  title_ar: 'مولد الإمام علي الهادي عليه السلام',         description_ar: 'مولد الإمام العاشر من أئمة أهل البيت.' },
+  { id: 'imam-ali-birth',     month: 7, day: 13, kind: 'wiladah',    figure: 'الإمام علي عليه السلام',     title_ar: 'مولد أمير المؤمنين علي بن أبي طالب عليه السلام', description_ar: 'مولد أمير المؤمنين عليه السلام في جوف الكعبة المشرفة، وهو اليوم الوحيد الذي شرّفه الله بهذه المنزلة. تُستحب زيارته ليلة المولد.' },
   { id: 'imam-kazim-shahadah',month: 7, day: 25, kind: 'shahadah',   figure: 'الإمام الكاظم عليه السلام',  title_ar: 'شهادة الإمام موسى الكاظم عليه السلام',       description_ar: 'استشهاد الإمام السابع في سجن هارون الرشيد ببغداد سنة ١٨٣ هـ.' },
   { id: 'bitha',              month: 7, day: 27, kind: 'significant', figure: 'النبي محمد ﷺ',                title_ar: 'ليلة المبعث النبوي الشريف',                  description_ar: 'مبعث النبي الأكرم ﷺ بالرسالة. تُحيى ليلته بالعبادة والدعاء.' },
 

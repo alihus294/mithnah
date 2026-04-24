@@ -226,7 +226,17 @@
   // bright number in a mosque hall is easy otherwise.
   let currentPin = '';
 
+  // In-flight guard: startRefreshLoop() calls refresh() immediately
+  // AND schedules an interval. On tab visibility change, both can
+  // queue within ~30 ms of each other and produce overlapping
+  // /api/phone-dashboard calls. A late-arriving response would
+  // overwrite `lastSnapshot` with stale data, then the fresh
+  // response would overwrite it back — until then, the countdown
+  // ticks on the older snapshot. Reliability audit 2026-04-24.
+  let refreshInFlight = false;
   async function refresh() {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
     try {
       $('dash-status-line').textContent = 'جاري التحديث...';
       $('dash-status-line').className = 'dash__status';
@@ -268,6 +278,8 @@
       $('dash-status-line').className = 'dash__status err';
       currentRefreshMs = Math.min(currentRefreshMs * 2, MAX_REFRESH_MS);
       restartRefreshTimer();
+    } finally {
+      refreshInFlight = false;
     }
   }
   function restartRefreshTimer() {
