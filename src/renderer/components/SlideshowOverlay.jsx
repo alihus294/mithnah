@@ -2,11 +2,78 @@
 // true; otherwise renders null. Driven entirely by the main-process state
 // machine; no local state besides an "enter" animation class.
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toArabicDigits } from '../lib/format.js';
 import {
   ImamiStar, ArabesqueCorner, AlayhiSalam, SalawatLine, StarPatternBg
 } from './Ornaments.jsx';
+import { useModalActive } from '../lib/useModalActive.js';
+
+// ─── Font-scale-aware re-pagination ─────────────────────────────────
+//
+// Operator 2026-04-24 asked that NO text ever be clipped, and that
+// increasing the font should INCREASE the page count (reflow to
+// more pages) rather than shrinking the type or hiding content.
+// This is the core function that implements that behaviour.
+//
+// The main-process chunker already groups source lines into pages
+// of ≤2 lines / ≤160 chars (a conservative default for 1.0× zoom).
+// At larger scales the same 2-line page no longer fits the viewport,
+// so we split it further on the renderer side — no round-trip to
+// main, no deck re-load, just a derived `paginated` array keyed by
+// (slides, fontScale).
+//
+// Capacity heuristic (approximate, character-count based since
+// exact text measurement would require a hidden <div> reflow per
+// render — too expensive on every scale change):
+//   • maxLinesPerPage = max(1, round(2 / fontScale))
+//   • maxCharsPerLine = max(20, round(90 / fontScale))
+// Both floors keep the result sensible even at fontScale 2.0
+// (1 line, 45 chars) — still enough for a verse fragment.
+function repaginate(slides, fontScale) {
+  if (!Array.isArray(slides) || slides.length === 0) return [];
+  const scale = Math.max(0.7, Math.min(2.2, Number(fontScale) || 1));
+  // 1.0× keeps chunker's defaults; larger scales tighten aggressively.
+  const maxLines = Math.max(1, Math.round(2 / scale));
+  const maxChars = Math.max(20, Math.round(90 / scale));
+  const wrapChars = Math.max(16, Math.round(70 / scale));
+  const out = [];
+  // Tag each output entry with its `baseIdx` (position in the
+  // original slides array) so the renderer can map back to the
+  // main-process state machine's slide index on navigation.
+  slides.forEach((s, baseIdx) => {
+    if (!s || s.kind !== 'text' || !s.ar) { out.push({ ...s, baseIdx }); return; }
+    const rawLines = String(s.ar).split('\n').map((l) => l.trim()).filter(Boolean);
+    const lines = [];
+    for (const l of rawLines) {
+      if (l.length <= wrapChars) { lines.push(l); continue; }
+      const words = l.split(/\s+/);
+      let buf = '';
+      for (const w of words) {
+        if (buf === '' && w.length > wrapChars) { lines.push(w); continue; }
+        const cand = buf ? buf + ' ' + w : w;
+        if (cand.length > wrapChars && buf) { lines.push(buf); buf = w; }
+        else { buf = cand; }
+      }
+      if (buf) lines.push(buf);
+    }
+    let page = [];
+    let pageChars = 0;
+    const flushPage = () => {
+      if (page.length > 0) out.push({ ...s, baseIdx, ar: page.join('\n') });
+      page = []; pageChars = 0;
+    };
+    for (const l of lines) {
+      const overflowLines = page.length + 1 > maxLines;
+      const overflowChars = pageChars + l.length + 1 > maxChars;
+      if ((overflowLines || overflowChars) && page.length > 0) flushPage();
+      page.push(l);
+      pageChars += l.length + 1;
+    }
+    flushPage();
+  });
+  return out;
+}
 
 // Reader font scale lives in localStorage — independent of renderer
 // zoom. An elderly operator needs to enlarge the Arabic text without
@@ -81,78 +148,83 @@ export default function SlideshowOverlay({ state }) {
     try { window.electron?.slideshow?.command?.('CLOSE'); } catch (_) {}
   }, []);
 
-  // Fit-to-container scale. The caretaker's user-set font scale above
-  // can push a slide past the body row's visible area — operator
-  // 2026-04-23 asked that NO text be clipped outside the frame at any
-  // font size. Applied via transform:scale() so the measurement is
-  // never confused by the previous fit: scrollHeight always reports
-  // the un-transformed intrinsic height. Three sources of truth
-  // trigger a re-measure: window resize, slide change, and fontScale
-  // change — the slide gets ONE definitive measurement per render
-  // pass, no observer-driven oscillation.
-  //
-  // Hooks MUST stay above the `if (!state || !state.active) return null`
-  // early return. A prior edit nested them below it, which let React
-  // count different numbers of hooks between "slideshow closed" and
-  // "slideshow open" renders and immediately threw error #310 the
-  // first time the operator opened a dua (blank screen + error
-  // boundary message). The fix is structural: order matters more
-  // than code locality.
-  const bodyRef = useRef(null);
-  const contentRef = useRef(null);
-  const [fitScale, setFitScale] = useState(1);
+  // Font-scale-aware re-pagination. Recomputes a paginated view of
+  // the deck whenever the source slides or fontScale change. Pure
+  // memo — no DOM measurement, no layout thrash. Operator 2026-04-24:
+  // "كل ما كبرت الخط تزيد الصفحات لان الكلام ينتقل لصفة ثانيه بدل ما
+  // يضيع برا الاطار" — exactly the behaviour this implements.
+  const effectiveSlides = useMemo(
+    () => repaginate(state?.slides || [], fontScale),
+    [state?.slides, fontScale]
+  );
+  // Find the first paginated index whose baseIdx matches the
+  // current main-process index. Used to sync the renderer's
+  // navigation pointer when main dispatches a jump (OPEN to slide
+  // N, Home, End, or an external command from the mobile page).
+  const firstIdxForBase = useMemo(() => {
+    const baseIdx = state?.index ?? 0;
+    const i = effectiveSlides.findIndex((s) => s.baseIdx === baseIdx);
+    return i < 0 ? 0 : i;
+  }, [effectiveSlides, state?.index]);
+  // Renderer-owned navigation pointer. Starts at the first sub-page
+  // of whatever base slide main is currently on; advances through
+  // sub-pages locally; calls main's NEXT/PREV only when crossing a
+  // base-slide boundary so persistence still works.
+  const [effectiveIndex, setEffectiveIndex] = useState(firstIdxForBase);
+  useEffect(() => { setEffectiveIndex(firstIdxForBase); }, [firstIdxForBase]);
+
+  // Take ownership of the slideshow keyboard shortcuts while we're
+  // the active overlay. useModalActive publishes `modalActive: true`
+  // so main/index.js' before-input-event handler bails on arrows,
+  // letting our document listener below be the sole authority.
+  // Without this, both main (which dispatches NEXT to advance BASE
+  // slide by 1) and our local handler (which advances by 1 SUB-page)
+  // would fire on a single keypress and get out of sync.
+  useModalActive(!!state?.active);
   useEffect(() => {
     if (!state?.active) return;
-    // Ask the browser to lay out fontScale's effect first, then
-    // measure. rAF guarantees we read after commit.
-    let cancelled = false;
-    let scheduled = 0;
-    const measure = () => {
-      scheduled = 0;
-      if (cancelled) return;
-      const container = bodyRef.current;
-      const content = contentRef.current;
-      if (!container || !content) return;
-      // Intrinsic height of the content (before transform). transform
-      // is a visual effect — it does NOT affect scrollHeight — so the
-      // value we read here is always the un-scaled size regardless
-      // of the fitScale we previously applied.
-      const intrinsicH = content.scrollHeight;
-      const availableH = container.clientHeight;
-      if (availableH <= 0 || intrinsicH <= 0) return;
-      // 0.98 = 2% safety margin so tall glyph ascenders never kiss
-      // the body boundary during font-scale transitions.
-      const needed = (availableH * 0.98) / intrinsicH;
-      // Floor at 0.55 — any lower and the 52-120px base font drops
-      // below ~29-66px (presbyopia-critical range). If the content
-      // still doesn't fit at 0.55, the CSS overflow:hidden safety
-      // net clips it rather than rendering the text unreadably
-      // small. Caretaker can always reduce their Ctrl+/- scale.
-      const next = Math.max(0.55, Math.min(1, needed));
-      setFitScale((prev) => Math.abs(next - prev) > 0.005 ? next : prev);
+    const onKey = (e) => {
+      // Ctrl/Cmd combos belong to the font-scale handler above —
+      // don't intercept them here.
+      if (e.ctrlKey || e.metaKey) return;
+      if (e.key === 'ArrowLeft' || e.key === 'PageDown' || e.code === 'Space') {
+        e.preventDefault();
+        setEffectiveIndex((i) => Math.min(i + 1, effectiveSlides.length - 1));
+      } else if (e.key === 'ArrowRight' || e.key === 'PageUp') {
+        e.preventDefault();
+        setEffectiveIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setEffectiveIndex(0);
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        setEffectiveIndex(Math.max(0, effectiveSlides.length - 1));
+      } else if (e.key === 'b' || e.key === 'B' || e.key === '.') {
+        e.preventDefault();
+        try { window.electron?.slideshow?.command?.('BLANK'); } catch (_) {}
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        try { window.electron?.slideshow?.command?.('CLOSE'); } catch (_) {}
+      }
     };
-    // Single-flight rAF queue: coalesces rapid fire (window drag,
-    // multiple listeners firing within the same tick) into one
-    // measurement per frame. Previous version booked a fresh rAF
-    // per resize event, which during a live window drag stacked
-    // dozens of redundant layout reads per second.
-    const schedule = () => {
-      if (scheduled || cancelled) return;
-      scheduled = requestAnimationFrame(measure);
-    };
-    schedule();
-    window.addEventListener('resize', schedule);
-    return () => {
-      cancelled = true;
-      if (scheduled) cancelAnimationFrame(scheduled);
-      window.removeEventListener('resize', schedule);
-    };
-    // fitScale INTENTIONALLY omitted from the dep list — the effect
-    // reads intrinsicH (which doesn't depend on the applied scale)
-    // and sets fitScale, so including it would loop. This is the
-    // only correct usage of the "ignore self-update" pattern here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.active, state?.index, fontScale]);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [state?.active, effectiveSlides.length]);
+
+  // Sync main's base-slide index with our effective index so the
+  // mobile remote-control snapshot and the resume-after-crash state
+  // stay approximately correct. Only fires on base-slide crossings
+  // (effectiveSlides[effectiveIndex].baseIdx !== state.index), never
+  // on pure sub-page nav inside a base slide.
+  useEffect(() => {
+    if (!state?.active) return;
+    const cur = effectiveSlides[effectiveIndex];
+    if (!cur) return;
+    if (cur.baseIdx === state.index) return;
+    try {
+      window.electron?.slideshow?.command?.('GOTO', { index: cur.baseIdx });
+    } catch (_) { /* main not ready — renderer-local nav still works */ }
+  }, [effectiveIndex, effectiveSlides, state?.active, state?.index]);
 
   // ──── Early return AFTER every hook above ────────────────────────
   // Every hook must run on every render so React can match them by
@@ -162,12 +234,13 @@ export default function SlideshowOverlay({ state }) {
   if (!state || !state.active) return null;
 
   const deck = state.deck || {};
-  const slides = state.slides || [];
-  const slide = slides[state.index] || null;
-  // "الصفحة ١ من ١٠" reads more naturally in Arabic than the Latin
-  // "1 / 10" — an elderly reader parses it as a sentence instead of a
-  // fraction.
-  const counter = `الصفحة ${toArabicDigits(state.index + 1)} من ${toArabicDigits(slides.length)}`;
+  // Use the font-scale-paginated view, not the raw main-process
+  // slides. `slide` is whatever the caretaker is looking at right
+  // now; `effectiveSlides.length` is what the counter "X من Y"
+  // should display — both grow as font scale grows so text never
+  // ends up outside the frame.
+  const slide = effectiveSlides[effectiveIndex] || null;
+  const counter = `الصفحة ${toArabicDigits(effectiveIndex + 1)} من ${toArabicDigits(effectiveSlides.length || 1)}`;
   const subtitleHonorific = /علي بن أبي طالب|فاطمة|الحسن|الحسين|العسكري|المهدي|الصادق|الباقر|الرضا|الكاظم|السجاد|الجواد|الهادي/.test(deck.subtitle || '');
   const arabicLines = (slide?.ar || '').split('\n').map(l => l.trim()).filter(Boolean);
   // Every slide renders at the same type size — previous dynamic scaling
@@ -181,7 +254,7 @@ export default function SlideshowOverlay({ state }) {
       dir="rtl"
       aria-live="polite"
       role="region"
-      style={{ '--slideshow-font-scale': fontScale, '--slideshow-fit-scale': fitScale }}
+      style={{ '--slideshow-font-scale': fontScale }}
       onMouseMove={revealChrome}
       onTouchStart={revealChrome}
     >
@@ -247,10 +320,9 @@ export default function SlideshowOverlay({ state }) {
             with no intermediate frame where the new text is rendered
             at full opacity (which is what made the text look like it
             "jumped" before the fade in the previous build). */}
-        <div className="slideshow__body" ref={bodyRef}>
+        <div className="slideshow__body">
           <div
-            key={`${deck.id}-${state.index}`}
-            ref={contentRef}
+            key={`${deck.id}-${effectiveIndex}`}
             className={`slideshow__body-inner slideshow__body-inner--enter ${lineClass}`}
           >
             {arabicLines.length > 0 && (
@@ -260,7 +332,7 @@ export default function SlideshowOverlay({ state }) {
             )}
           </div>
           {slide?.subtitle && (
-            <div className="slideshow__subtitle-layer" key={`sub-${deck.id}-${state.index}`}>
+            <div className="slideshow__subtitle-layer" key={`sub-${deck.id}-${effectiveIndex}`}>
               <div className="slideshow__subtitle">{slide.subtitle}</div>
             </div>
           )}

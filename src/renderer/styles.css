@@ -691,17 +691,13 @@ html[data-large-text="true"] .masthead__logo {
    * variable still works (0.7×–1.8×). At scale 1.0 on a 1080p screen
    * the body renders ~96px — roughly double what a pocket Quran uses. */
   /* Base size bumped to clamp(52–120px). `--slideshow-font-scale` is
-   * the caretaker's explicit zoom (Ctrl +/-). Font-size reflows
-   * naturally — what the operator gains/loses is line-count. */
+   * the caretaker's explicit zoom (Ctrl +/-). 2026-04-24 rewrite:
+   * transform:scale fit-shrink removed — it was capping the zoom
+   * visually, which the operator explicitly rejected. The new
+   * approach paginates to MORE pages instead of scaling the font
+   * down (see repaginate() in SlideshowOverlay.jsx). Font always
+   * renders at the caretaker's chosen size. */
   font-size: calc(clamp(52px, min(5.3vw, 9vh), 120px) * var(--slideshow-font-scale, 1));
-  /* `--slideshow-fit-scale` (default 1) is a belt-and-braces safety
-   * net applied as a visual transform whenever the intrinsic content
-   * height still exceeds the container after reflow. transform
-   * doesn't affect scrollHeight, so the ResizeObserver's measurement
-   * stays correct across re-applications. Keep transform-origin at
-   * the centre so the squished content doesn't jump toward a corner. */
-  transform: scale(var(--slideshow-fit-scale, 1));
-  transform-origin: center center;
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
