@@ -159,15 +159,83 @@ export default function SlideshowOverlay({ state }) {
     try { window.electron?.slideshow?.command?.('CLOSE'); } catch (_) {}
   }, []);
 
-  // Font-scale-aware re-pagination. Recomputes a paginated view of
-  // the deck whenever the source slides or fontScale change. Pure
-  // memo — no DOM measurement, no layout thrash. Operator 2026-04-24:
-  // "كل ما كبرت الخط تزيد الصفحات لان الكلام ينتقل لصفة ثانيه بدل ما
-  // يضيع برا الاطار" — exactly the behaviour this implements.
-  const effectiveSlides = useMemo(
-    () => repaginate(state?.slides || [], fontScale),
-    [state?.slides, fontScale]
-  );
+  // DOM-measured pagination. Operator 2026-04-24 insisted on a
+  // radical fix: no clipping, no fragmented lines. Character-count
+  // heuristics kept miscounting visual wrap because a 60-char verse
+  // at 97 px font on 1920 wraps to 2 rows (char count says 1), so
+  // pages that "should fit" overflowed the 880 px body. The only
+  // honest solution is to let the DOM tell us what fits.
+  //
+  // Mechanism:
+  //   • Keep an always-mounted invisible "measurer" div cloned
+  //     from the visible body-inner (same font, same max-width,
+  //     same padding, same line-height).
+  //   • When (slides, fontScale, window size) changes, pack
+  //     verses into a candidate page one at a time. After each
+  //     add we read measurer.scrollHeight. If it exceeds the
+  //     measurer's clientHeight we roll back the last verse and
+  //     flush the page.
+  //   • Single long verse that alone exceeds the container stays
+  //     on its own page — CSS word-wrap handles the visual rows
+  //     and overflow:hidden catches any sliver. No way around this
+  //     without mid-verse splitting, which operators already said
+  //     looks ugly.
+  const measurerRef = useRef(null);
+  const [paginatedSlides, setPaginatedSlides] = useState([]);
+  useEffect(() => {
+    if (!state?.active) return;
+    if (!Array.isArray(state.slides) || state.slides.length === 0) {
+      setPaginatedSlides([]);
+      return;
+    }
+    let cancelled = false;
+    // rAF so CSS / font has been applied before we measure.
+    const raf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      const m = measurerRef.current;
+      if (!m) {
+        // Fallback to char-count repagination if the measurer isn't
+        // mounted yet (shouldn't happen but belt and braces).
+        setPaginatedSlides(repaginate(state.slides, fontScale));
+        return;
+      }
+      const containerH = m.clientHeight;
+      if (containerH <= 0) {
+        setPaginatedSlides(repaginate(state.slides, fontScale));
+        return;
+      }
+      const out = [];
+      for (let baseIdx = 0; baseIdx < state.slides.length; baseIdx++) {
+        const slide = state.slides[baseIdx];
+        if (!slide || slide.kind !== 'text' || !slide.ar) {
+          out.push({ ...slide, baseIdx });
+          continue;
+        }
+        const verses = String(slide.ar).split('\n').map((l) => l.trim()).filter(Boolean);
+        let page = [];
+        for (const verse of verses) {
+          const candidate = [...page, verse].join('\n');
+          m.textContent = candidate;
+          if (m.scrollHeight > containerH && page.length > 0) {
+            // This verse would overflow — flush current page and
+            // start a new page with this verse alone.
+            out.push({ ...slide, baseIdx, ar: page.join('\n') });
+            page = [verse];
+          } else {
+            page.push(verse);
+          }
+        }
+        if (page.length > 0) {
+          out.push({ ...slide, baseIdx, ar: page.join('\n') });
+        }
+      }
+      m.textContent = ''; // release text nodes
+      if (!cancelled) setPaginatedSlides(out);
+    });
+    return () => { cancelled = true; cancelAnimationFrame(raf); };
+  }, [state?.active, state?.slides, fontScale]);
+  // Aliased for the rest of the component which still uses `effectiveSlides`.
+  const effectiveSlides = paginatedSlides;
   // Find the first paginated index whose baseIdx matches the
   // current main-process index. Used to sync the renderer's
   // navigation pointer when main dispatches a jump (OPEN to slide
@@ -342,6 +410,23 @@ export default function SlideshowOverlay({ state }) {
               </div>
             )}
           </div>
+          {/* Hidden measurer — structurally identical to body-inner
+              so scrollHeight reads the true render height at the
+              current font + max-width. Used by the pagination
+              effect above to pack verses without overflow. The
+              `pre-wrap` white-space preserves the \n we feed it. */}
+          <div
+            ref={measurerRef}
+            className="slideshow__body-inner"
+            aria-hidden="true"
+            style={{
+              position: 'absolute', inset: 0,
+              visibility: 'hidden', pointerEvents: 'none',
+              overflow: 'visible',
+              whiteSpace: 'pre-wrap',
+              contain: 'content',
+            }}
+          />
           {slide?.subtitle && (
             <div className="slideshow__subtitle-layer" key={`sub-${deck.id}-${effectiveIndex}`}>
               <div className="slideshow__subtitle">{slide.subtitle}</div>
