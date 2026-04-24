@@ -554,16 +554,18 @@ html[data-large-text="true"] .masthead__logo {
 
 .slideshow__column {
   position: absolute;
-  /* Tightened frame insets again 2026-04-23 per operator request —
-   * the dua body should eat every spare pixel. 24px side padding
-   * (down from 60px) still respects the corner ornaments, while the
-   * body row reclaims ~72px of horizontal room. */
-  inset: 28px 40px 28px;
+  /* 3rd tightening pass 2026-04-24: 40 px fixed side inset wasted
+   * 80 px on any wall. Responsive values scale 16 px on ultrabooks
+   * to 36 px on 4K where corner ornaments need extra clearance.
+   * Vertical insets trimmed 28 → 24 for a few more pixels. */
+  top: 24px; bottom: 24px;
+  inset-inline: clamp(16px, 1.8vw, 36px);
   display: grid;
-  /* Header/footer rows shrunk further (min-height 120/100 and 14/10%)
-   * so the Arabic body has maximum vertical real estate at any font
-   * size. Fit-to-container scale still guarantees no clipping. */
-  grid-template-rows: minmax(120px, 14%) 1fr minmax(100px, 10%);
+  /* Header floor 120 → 100 and cap 14 → 12; footer 100 → 80, cap
+   * 10 → 8. Reclaims ~26 px of vertical space for the Arabic body
+   * on 1080 p, more on 4K. Fit-to-container scale still prevents
+   * any clipping. */
+  grid-template-rows: minmax(100px, 12%) 1fr minmax(80px, 8%);
   align-items: stretch;
 }
 .slideshow__header {
@@ -1016,11 +1018,17 @@ html[data-large-text="true"] .masthead__logo {
 }
 .help-overlay__card {
   position: absolute;
-  top: 70px; left: 140px; right: 140px; bottom: 70px;
+  top: 48px; bottom: 48px;
+  /* Responsive logical insets — 140 px fixed was wasting ~280 px
+   * (15% of a 1920 viewport) on wide displays for no functional
+   * reason. clamp(32px, 4vw, 96px) scales 32 px at 1024 to 77 px
+   * at 1920 to 96 px on 4K, always leaving the card breathing
+   * room without the ambulance-bay white bands. */
+  inset-inline: clamp(32px, 4vw, 96px);
   background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
   border: 1px solid var(--m-hairline-bright);
   border-radius: 10px;
-  padding: 56px;
+  padding: clamp(28px, 3.5vw, 56px);
   box-shadow: var(--m-shadow-deep);
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -1174,11 +1182,15 @@ html[data-large-text="true"] .masthead__logo {
 }
 .settings-overlay__card {
   position: absolute;
-  top: 40px; left: 60px; right: 60px; bottom: 40px;
+  top: 32px; bottom: 32px;
+  /* Was 60 px fixed on each side — 120 px of horizontal waste on
+   * 1920. Responsive scales 24 → 48 → 64 so fields have room on
+   * 4K while shrinking to 24 px on 1024 where every pixel counts. */
+  inset-inline: clamp(24px, 2.5vw, 64px);
   background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
   border: 1px solid var(--m-hairline-bright);
   border-radius: 10px;
-  padding: 40px 48px 32px;
+  padding: clamp(24px, 2.5vw, 40px) clamp(28px, 3vw, 48px) clamp(20px, 2vw, 32px);
   box-shadow: var(--m-shadow-deep);
   display: flex; flex-direction: column;
   overflow-y: auto;
@@ -1545,11 +1557,18 @@ html[data-large-text="true"] .masthead__logo {
 }
 .dua-picker__card {
   position: absolute;
-  top: 60px; left: 100px; right: 100px; bottom: 60px;
+  top: 40px; bottom: 40px;
+  /* Responsive logical insets — was 100 px fixed on each side. On
+   * 1920 a 200 px band per row could fit another dua card column
+   * (320 px min). clamp(28px, 3vw, 72px) scales from 28 at 1024
+   * to 58 at 1920 to 72 on 4K — tight but not cramped, and the
+   * library grid (auto-fill 320 px) reliably yields an extra
+   * column on most wall resolutions. */
+  inset-inline: clamp(28px, 3vw, 72px);
   background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
   border: 1px solid var(--m-hairline-bright);
   border-radius: 10px;
-  padding: 40px 48px 28px;
+  padding: clamp(24px, 2.5vw, 40px) clamp(28px, 3vw, 48px) clamp(20px, 2vw, 28px);
   box-shadow: var(--m-shadow-deep);
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -2133,13 +2152,15 @@ html[data-large-text="true"] .masthead__logo {
 /* Display-only block — centred single column that actually uses the
  * vertical real estate instead of floating two pills in a sparse
  * grid. The salawat ribbon below grounds the composition. Widened
- * 2026-04-24: operator reported wasted space on 1920+ walls. Old
- * 860 px cap left ~1060 px of horizontal emptiness. */
+ * 2026-04-24 again: first pass at 1400 px still left 520 px of
+ * horizontal emptiness on 1920 walls. clamp(600, 92vw, 1800) is
+ * truly responsive — fills 92% of the viewport at every size up
+ * to an 1800 px ceiling that preserves readability on 4K. */
 .prayer-tracker__display {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   gap: clamp(18px, 3vh, 44px);
-  width: min(1400px, 96vw);
+  width: clamp(600px, 92vw, 1800px);
 }
 .prayer-tracker__stage--display-only .prayer-tracker__prayer-badge {
   padding: clamp(18px, 2.5vh, 36px) clamp(24px, 3vw, 56px);
@@ -2275,8 +2296,11 @@ html[data-large-text="true"] .masthead__logo {
 }
 .prayer-tracker__tasbih-grid {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 28px;
-  width: min(1100px, 92vw);
+  gap: clamp(20px, 2vw, 40px);
+  /* Widened 2026-04-24 — 1100 px cap left ~43% of a 1920 wall empty
+   * (410 px bands on each side). 1700 px ceiling preserves tile
+   * proportions on 4K while filling 92% of any viewport. */
+  width: clamp(600px, 92vw, 1700px);
 }
 .prayer-tracker__tasbih-tile {
   background: rgba(226, 183, 106, 0.08);
@@ -2304,7 +2328,9 @@ html[data-large-text="true"] .masthead__logo {
  * ornament, not a card. */
 .prayer-tracker__tasbih-hadith {
   margin: 8px auto 0;
-  width: min(1100px, 92vw);
+  /* Matches the tasbih-grid width so the hadith card aligns under
+   * the 3 tiles without a visual step. */
+  width: clamp(600px, 92vw, 1700px);
   /* Vertical padding uses vh so on short 720p screens the card is
    * tighter (reclaiming ~20 px of vertical room), while 1440p walls
    * still get generous breathing room. Line-height steps down on
