@@ -81,19 +81,6 @@ export default function SlideshowOverlay({ state }) {
     try { window.electron?.slideshow?.command?.('CLOSE'); } catch (_) {}
   }, []);
 
-  if (!state || !state.active) return null;
-
-  const deck = state.deck || {};
-  const slides = state.slides || [];
-  const slide = slides[state.index] || null;
-  // "الصفحة ١ من ١٠" reads more naturally in Arabic than the Latin
-  // "1 / 10" — an elderly reader parses it as a sentence instead of a
-  // fraction.
-  const counter = `الصفحة ${toArabicDigits(state.index + 1)} من ${toArabicDigits(slides.length)}`;
-  const subtitleHonorific = /علي بن أبي طالب|فاطمة|الحسن|الحسين|العسكري|المهدي|الصادق|الباقر|الرضا|الكاظم|السجاد|الجواد|الهادي/.test(deck.subtitle || '');
-
-  const arabicLines = (slide?.ar || '').split('\n').map(l => l.trim()).filter(Boolean);
-
   // Fit-to-container scale. The caretaker's user-set font scale above
   // can push a slide past the body row's visible area — operator
   // 2026-04-23 asked that NO text be clipped outside the frame at any
@@ -103,6 +90,14 @@ export default function SlideshowOverlay({ state }) {
   // trigger a re-measure: window resize, slide change, and fontScale
   // change — the slide gets ONE definitive measurement per render
   // pass, no observer-driven oscillation.
+  //
+  // Hooks MUST stay above the `if (!state || !state.active) return null`
+  // early return. A prior edit nested them below it, which let React
+  // count different numbers of hooks between "slideshow closed" and
+  // "slideshow open" renders and immediately threw error #310 the
+  // first time the operator opened a dua (blank screen + error
+  // boundary message). The fix is structural: order matters more
+  // than code locality.
   const bodyRef = useRef(null);
   const contentRef = useRef(null);
   const [fitScale, setFitScale] = useState(1);
@@ -158,6 +153,23 @@ export default function SlideshowOverlay({ state }) {
     // only correct usage of the "ignore self-update" pattern here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state?.active, state?.index, fontScale]);
+
+  // ──── Early return AFTER every hook above ────────────────────────
+  // Every hook must run on every render so React can match them by
+  // call order. Derived read-only values (deck, slides, slide,
+  // counter, lineClass, arabicLines) live below the return because
+  // they are plain const expressions — no hook cost.
+  if (!state || !state.active) return null;
+
+  const deck = state.deck || {};
+  const slides = state.slides || [];
+  const slide = slides[state.index] || null;
+  // "الصفحة ١ من ١٠" reads more naturally in Arabic than the Latin
+  // "1 / 10" — an elderly reader parses it as a sentence instead of a
+  // fraction.
+  const counter = `الصفحة ${toArabicDigits(state.index + 1)} من ${toArabicDigits(slides.length)}`;
+  const subtitleHonorific = /علي بن أبي طالب|فاطمة|الحسن|الحسين|العسكري|المهدي|الصادق|الباقر|الرضا|الكاظم|السجاد|الجواد|الهادي/.test(deck.subtitle || '');
+  const arabicLines = (slide?.ar || '').split('\n').map(l => l.trim()).filter(Boolean);
   // Every slide renders at the same type size — previous dynamic scaling
   // (lg/md/sm/xs) caused visible "jumps" between consecutive slides.
   // We paginate 1 verse per slide so scaling is no longer needed.
