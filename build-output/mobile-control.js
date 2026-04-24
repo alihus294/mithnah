@@ -106,7 +106,19 @@
       const data = await resp.json().catch(() => ({}));
       throw new Error(`محاولات متكرّرة — حاول بعد ${toArabicDigits(data.retryAfterSec || 900)} ثانية`);
     }
-    if (!resp.ok) throw new Error('رمز PIN غير صحيح');
+    if (!resp.ok) {
+      // Surface remaining-attempts hint when the server provides it in
+      // the body. Previously the phone only said "رمز PIN غير صحيح"
+      // which left an elderly caretaker with arthritis staring at a
+      // generic error — they didn't know whether their next tap would
+      // lock them out for 15 minutes or not. UX audit 2026-04-24.
+      const data = await resp.json().catch(() => ({}));
+      const remaining = Number(data.attemptsLeft);
+      if (Number.isFinite(remaining) && remaining >= 0) {
+        throw new Error(`رمز PIN غير صحيح — تبقّى ${toArabicDigits(remaining)} محاولة`);
+      }
+      throw new Error('رمز PIN غير صحيح');
+    }
     const data = await resp.json();
     if (!data.token) throw new Error('فشل الحصول على الصلاحية');
     sessionStorage.setItem(TOKEN_KEY, data.token);
@@ -596,17 +608,23 @@
         pinBtn.setAttribute('data-revealed', 'false');
         pinBtn.textContent = 'اضغط للعرض';
         pinBtn.setAttribute('aria-label', 'اضغط لعرض رمز PIN');
+        pinBtn.setAttribute('title', 'اضغط لعرض رمز PIN');
         if (pinMaskTimer) { clearTimeout(pinMaskTimer); pinMaskTimer = null; }
       } else {
         pinBtn.setAttribute('data-revealed', 'true');
-        pinBtn.textContent = currentPin; // Latin digits — easier to read
+        // Append a subtle hide hint next to the digits so the operator
+        // doesn't think tapping again will delete the PIN (UX audit
+        // 2026-04-24: "after reveal, tapping again looks scary").
+        pinBtn.textContent = `${currentPin}  ⟲ إخفاء`;
         pinBtn.setAttribute('aria-label', 'رمز PIN مكشوف — اضغط لإخفائه');
+        pinBtn.setAttribute('title', 'اضغط لإخفاء رمز PIN');
         if (pinMaskTimer) clearTimeout(pinMaskTimer);
         pinMaskTimer = setTimeout(() => {
           if (pinBtn.getAttribute('data-revealed') === 'true') {
             pinBtn.setAttribute('data-revealed', 'false');
             pinBtn.textContent = 'اضغط للعرض';
             pinBtn.setAttribute('aria-label', 'اضغط لعرض رمز PIN');
+            pinBtn.setAttribute('title', 'اضغط لعرض رمز PIN');
           }
         }, 20_000);
       }

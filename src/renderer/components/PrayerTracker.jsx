@@ -60,14 +60,15 @@ const PRAYER_NAMES_AR = {
 // Map a prayer key to its default rakah count.
 const DEFAULT_RAKAHS = { fajr: 2, maghrib: 3, dhuhr: 4, asr: 4, isha: 4, jumuah: 2 };
 
-// Friday preset — shown only during the jumu'ah window so it's
-// always relevant when visible, not a year-round button cluttering
-// the bar. Window is 10:00–14:00 local time, the mosque's typical
-// setup → khutbah → salah stretch.
+// Friday preset — shown on the whole day Friday. The earlier 10:00–
+// 14:00 gate was too tight for mosques that pray Jumu'ah at 13:30
+// (operator reach-the-tracker-at-14:05 scenario left them with no
+// preset button, forcing them to use the 2-rakah Fajr preset as a
+// stand-in). Friday-all-day is simple and every entry is still
+// self-evidently correct — no one reaches for Jumu'ah preset on a
+// Wednesday by accident.
 function isJumuahWindow(now = new Date()) {
-  if (now.getDay() !== 5) return false; // Friday = 5 in JS (Sun=0)
-  const h = now.getHours();
-  return h >= 10 && h < 14;
+  return now.getDay() === 5; // Friday = 5 in JS (Sun=0)
 }
 
 export default function PrayerTracker() {

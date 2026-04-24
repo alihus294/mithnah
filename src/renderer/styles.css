@@ -418,7 +418,11 @@ html[data-large-text="true"] .masthead__logo {
 }
 .event-strip__countdown-when {
   font-family: var(--m-font-display);
-  font-size: clamp(20px, 1.8vw, 30px);
+  /* Design audit 2026-04-24: countdown should read BEFORE the title
+   * since "how soon" is the load-bearing datum on an upcoming-event
+   * card. Bumped floor from 20→26 and cap from 30→40 so it
+   * dominates the clamp(22–32) title beside it. */
+  font-size: clamp(26px, 2.2vw, 40px);
   color: var(--m-accent-bright);
   font-weight: 600;
   line-height: 1.1;
@@ -753,13 +757,13 @@ html[data-large-text="true"] .masthead__logo {
   border-radius: var(--m-radius-full);
   backdrop-filter: blur(6px);
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
-  /* Faint-but-findable by default. The operator asked the buttons
-   * to "hide until the mouse is on them" — a fully invisible element
-   * can't be targeted with a mouse, so we sit at 20% opacity (readable
-   * silhouette but not demanding attention) and flip to full opacity
-   * when the cursor actually enters the pill. Keyboard-focus also
-   * reveals it for tab users. */
-  opacity: 0.2;
+  /* Findable-by-default at 0.5 opacity — the old 0.2 was
+   * presbyopia-hostile: a 70-year-old caretaker with the slideshow
+   * open during dhikr couldn't spot the Ctrl+/- buttons without
+   * already knowing where they lived. Full opacity on hover/focus
+   * preserves the "don't compete with the dua text" goal, but the
+   * idle state is now visible from across the hall. */
+  opacity: 0.5;
   transition: opacity var(--m-motion-standard) ease;
 }
 .slideshow__fontctl:hover,
@@ -2700,8 +2704,16 @@ html[data-large-text="true"] .masthead__logo {
   font-family: var(--m-font-display);
   font-size: 20px;
   color: var(--m-accent-bright);
+  /* Cap the ribbon width so a long "بعد X ساعة وY دقيقة وZ ثانية"
+   * countdown never wraps onto 2+ lines and pushes the prayer row
+   * off-screen on a short wall display. Ellipsis clips the rare
+   * overflow rather than reflowing the whole dashboard.  */
+  max-width: min(800px, 90%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.countdown-ribbon__label { color: var(--m-text-primary); font-size: 17px; }
+.countdown-ribbon__label { color: var(--m-text-primary); font-size: 17px; white-space: nowrap; }
 
 /* Undo toast — appears bottom-center for ~10s after a config save.
  * Replaces "did something happen?" anxiety with a clear button to
@@ -3091,17 +3103,29 @@ html[data-large-text="true"] .next__time { font-size: clamp(34px, 3.2vw, 60px); 
 html[data-large-text="true"] .prayer-cell__name { font-size: clamp(20px, 1.7vw, 32px); }
 html[data-large-text="true"] .prayer-cell__time { font-size: clamp(28px, 2.2vw, 44px); }
 html[data-large-text="true"] .event-strip__title { font-size: clamp(22px, 1.8vw, 34px); }
-html[data-large-text="true"] .settings__label { font-size: 20px; }
-html[data-large-text="true"] .settings__hint { font-size: 16px; }
-html[data-large-text="true"] .settings__btn { font-size: 16px; min-height: 52px; padding: 12px 18px; }
-html[data-large-text="true"] .help-overlay__title { font-size: 32px; }
-html[data-large-text="true"] .floating-menu__trigger { font-size: 19px; min-height: 64px; }
-html[data-large-text="true"] .floating-menu__item { font-size: 19px; min-height: 64px; }
-html[data-large-text="true"] .inline-modal__title { font-size: 26px; }
-html[data-large-text="true"] .inline-modal__btn { font-size: 17px; min-height: 52px; }
-html[data-large-text="true"] .onboarding-overlay__title { font-size: 34px; }
-html[data-large-text="true"] .onboarding-overlay__msg { font-size: 19px; }
-html[data-large-text="true"] .onboarding-overlay__btn { font-size: 17px; min-height: 56px; }
+html[data-large-text="true"] .settings__label { font-size: 22px; }
+html[data-large-text="true"] .settings__hint { font-size: 17px; }
+html[data-large-text="true"] .settings__btn { font-size: 18px; min-height: 56px; padding: 14px 22px; }
+html[data-large-text="true"] .settings__input,
+html[data-large-text="true"] .settings__select { font-size: 18px; min-height: 52px; }
+html[data-large-text="true"] .settings__tab-label { font-size: 18px; }
+html[data-large-text="true"] .help-overlay__title { font-size: 36px; }
+html[data-large-text="true"] .help-overlay__subtitle { font-size: 22px; }
+html[data-large-text="true"] .help-section__list dt { font-size: 20px; }
+html[data-large-text="true"] .help-section__list dd { font-size: 18px; }
+html[data-large-text="true"] .floating-menu__trigger { font-size: 22px; min-height: 72px; }
+html[data-large-text="true"] .floating-menu__item { font-size: 22px; min-height: 72px; }
+html[data-large-text="true"] .inline-modal__title { font-size: 28px; }
+html[data-large-text="true"] .inline-modal__btn { font-size: 19px; min-height: 56px; padding: 14px 22px; }
+html[data-large-text="true"] .onboarding-overlay__title { font-size: 38px; }
+html[data-large-text="true"] .onboarding-overlay__msg { font-size: 21px; line-height: 1.7; }
+html[data-large-text="true"] .onboarding-overlay__btn { font-size: 19px; min-height: 60px; }
+/* Expanded for the 2026-04-24 elderly-users reminder. Previous cap
+ * raised settings__label to only 20px — barely a bump from the
+ * 19px default. The new scale is ~20% larger across every field
+ * the caretaker actually touches (inputs, selects, tab labels,
+ * help list terms). The tracker/slideshow/clock already had their
+ * own clamp()-based scales so they're untouched. */
 
 /* First-run tour — gentle 4-step walkthrough that fires once per
  * machine after onboarding completes. Highlights one Dashboard

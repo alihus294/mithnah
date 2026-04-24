@@ -169,8 +169,10 @@ async function promptRestart(info, logger) {
     title: 'تحديث جاهز / Update ready',
     message: `تحديث جديد للبرنامج جاهز للتثبيت (${version}).`,
     detail:
-      'اضغط "إعادة التشغيل الآن" لتثبيت التحديث، أو "لاحقاً" وسيتم التثبيت تلقائياً عند إغلاق البرنامج.\n\n' +
-      `A new version (${version}) is ready. Click "Restart now" to install immediately, or "Later" to install on next app close.`,
+      '✓ بياناتك كلّها محفوظة (الموقع، الأئمة، الأدعية المضافة، الإعدادات، PIN). التثبيت يستبدل البرنامج فقط ولا يمسّ إعداداتك.\n\n' +
+      '• "إعادة التشغيل الآن" — يُثبِّت التحديث الآن (حوالي دقيقة واحدة).\n' +
+      '• "لاحقاً" — يُثبَّت تلقائياً في المرّة القادمة التي تُغلق فيها التطبيق.\n\n' +
+      `A new version (${version}) is ready. Your settings, imam list, custom duas, location, and PIN are all preserved — the installer only replaces the program itself. "Restart now" installs immediately (~1 minute). "Later" installs automatically when you next close the app.`,
     buttons: ['إعادة التشغيل الآن / Restart now', 'لاحقاً / Later'],
     defaultId: 0,
     cancelId: 1,

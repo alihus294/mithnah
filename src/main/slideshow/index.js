@@ -126,11 +126,27 @@ function persistAsync() {
   const tmp = `${_stateFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
   fs.promises.writeFile(tmp, JSON.stringify(pointer), 'utf8')
     .then(() => fs.promises.rename(tmp, _stateFile))
-    .catch(() => {
-      // Best-effort tmp cleanup if the rename failed.
+    .then(() => {
+      _lastPersistError = null;
+    })
+    .catch((err) => {
+      // Log it — the silent-drop pattern previously meant a caretaker
+      // scrolled to slide 450 of Dua Arafa, lost power, and came back
+      // to slide 0 with no indication anything was wrong. Now the
+      // error is visible in the main-process log so a future field
+      // report can be correlated to a disk/permission failure. The
+      // state remains in memory so the live UI is unaffected; only
+      // the resume-after-crash path is hobbled.
+      console.error('[slideshow] persist failed:', err && err.message ? err.message : err);
+      _lastPersistError = { at: Date.now(), message: err && err.message ? String(err.message) : 'unknown' };
+      // Best-effort tmp cleanup so repeated failures don't pile tmp files.
       fs.promises.unlink(tmp).catch(() => {});
     });
 }
+// Module-level surface so a future IPC handler / health check can
+// ask "is slideshow state persisting correctly?" without touching
+// the file system.
+let _lastPersistError = null;
 
 function subscribe(fn) {
   listeners.add(fn);

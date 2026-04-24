@@ -636,7 +636,12 @@ async function startRemoteControlServer() {
         console.warn(`[Mobile Control] PIN lockout for ${ip} after ${record.count} failures (${PIN_LOCKOUT_MS / 60000} min)`);
       }
       pinFailures.set(ip, record);
-      res.status(401).json({ ok: false, message: 'Invalid PIN.' });
+      const attemptsLeft = Math.max(0, PIN_MAX_FAILURES - record.count);
+      // Expose remaining-attempts count so the phone can show
+      // "تبقّى ٢ محاولة" instead of a generic error; a caretaker
+      // with arthritis needs to know whether the next misfire will
+      // lock them out.
+      res.status(401).json({ ok: false, message: 'Invalid PIN.', attemptsLeft });
       return;
     }
 
@@ -1700,6 +1705,12 @@ ipcMain.handle('zoom:get', () => {
 });
 
 ipcMain.handle('zoom:set', (event, factor) => {
+  // Guarded: zoom:set is NOT read-only — it mutates globalZoom, which
+  // persists across the session and affects rendering of every
+  // subsequent overlay. An unprivileged sender (future webview,
+  // devtools-opened iframe) shouldn't be able to nudge the wall's
+  // zoom via IPC.
+  if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
   setGlobalZoom(factor, false);
   return zoomState.factor;
 });
