@@ -572,18 +572,22 @@ html[data-large-text="true"] .masthead__logo {
 
 .slideshow__column {
   position: absolute;
-  /* 3rd tightening pass 2026-04-24: 40 px fixed side inset wasted
-   * 80 px on any wall. Responsive values scale 16 px on ultrabooks
-   * to 36 px on 4K where corner ornaments need extra clearance.
-   * Vertical insets trimmed 28 → 24 for a few more pixels. */
-  top: 24px; bottom: 24px;
-  inset-inline: clamp(16px, 1.8vw, 36px);
+  /* 4th pass 2026-04-24: operator asked the text to reach the
+   * gold frame. Column insets now match the corner ornament
+   * inset exactly (36 px ← .slideshow__corner--*) so the text
+   * container's edges sit inside the arabesque frame with no
+   * wasted buffer between the two.
+   * On narrower screens clamp() shrinks to 12 px so 1024 p also
+   * uses edge-to-edge space. */
+  top: clamp(12px, 1.5vh, 36px);
+  bottom: clamp(12px, 1.5vh, 36px);
+  inset-inline: clamp(12px, 1.2vw, 36px);
   display: grid;
-  /* Header floor 120 → 100 and cap 14 → 12; footer 100 → 80, cap
-   * 10 → 8. Reclaims ~26 px of vertical space for the Arabic body
-   * on 1080 p, more on 4K. Fit-to-container scale still prevents
-   * any clipping. */
-  grid-template-rows: minmax(100px, 12%) 1fr minmax(80px, 8%);
+  /* Header floor tightened 100 → 88, cap 12 → 11; footer 80 → 72,
+   * cap 8 → 7. Reclaims ~28 more px of vertical space for the
+   * Arabic body — on 1080 p the body now occupies ~82% of the
+   * viewport height instead of ~78%. */
+  grid-template-rows: minmax(88px, 11%) 1fr minmax(72px, 7%);
   align-items: stretch;
 }
 .slideshow__header {
@@ -676,7 +680,11 @@ html[data-large-text="true"] .masthead__logo {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
   margin: 0 auto;
-  padding: 0 max(20px, 3vw);
+  /* Body-inner padding trimmed 2026-04-24: 3vw = 57px on 1920, was
+   * 114 px of sideways buffer between text and column edges on top
+   * of the column's own inset. Cut to clamp(8, 0.8vw, 20) so text
+   * reaches nearly to the gold frame. */
+  padding: 0 clamp(8px, 0.8vw, 20px);
   text-align: center;
   font-family: var(--m-font-quranic);
   /* Generous leading for elderly readability; 2-line pages (the new
@@ -701,10 +709,12 @@ html[data-large-text="true"] .masthead__logo {
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
-  /* Width cap widened — on ultra-wide walls we want a single line
-   * of a long verse to stretch further before wrapping. Still
-   * bounded so it doesn't edge-kiss the corner ornaments. */
-  max-width: min(1720px, 95vw);
+  /* Width cap widened one more time — operator wants the text
+   * reaching the gold frame. 98vw fills almost all of the column,
+   * 1900 cap holds on 4K. Corner ornaments are absolute-positioned
+   * at 36 px inset and sit ABOVE the column in z-order, so they
+   * still overlay the text edges decoratively without clipping. */
+  max-width: min(1900px, 98%);
   max-height: 100%;
   /* Safety-net overflow — if the observer ever misfires, a very
    * long verse still can't bleed into the header or footer. In
