@@ -217,10 +217,9 @@ input, textarea, [contenteditable="true"] {
   object-fit: contain;
   display: block;
 }
-.masthead__logo--mirror {
-  transform: scaleX(-1);
-  opacity: 0.85;
-}
+/* .masthead__logo--mirror retired 2026-04-24 — a mirrored duplicate
+ * of an asymmetric logo (calligraphy, figural crest) looks wrong.
+ * Single logo on the leading edge, ImamiStar on the trailing edge. */
 html[data-large-text="true"] .masthead__logo {
   height: clamp(56px, 4.6vw, 84px);
 }
@@ -668,12 +667,17 @@ html[data-large-text="true"] .masthead__logo {
    * variable still works (0.7×–1.8×). At scale 1.0 on a 1080p screen
    * the body renders ~96px — roughly double what a pocket Quran uses. */
   /* Base size bumped to clamp(52–120px). `--slideshow-font-scale` is
-   * the caretaker's explicit zoom (Ctrl +/-), `--slideshow-fit-scale`
-   * is a downscale-only safety multiplier set by the overlay when
-   * rendered content exceeds the container — together they guarantee
-   * the text fills as much space as possible AND never clips outside
-   * the frame at any Ctrl+ level. */
-  font-size: calc(clamp(52px, min(5.3vw, 9vh), 120px) * var(--slideshow-font-scale, 1) * var(--slideshow-fit-scale, 1));
+   * the caretaker's explicit zoom (Ctrl +/-). Font-size reflows
+   * naturally — what the operator gains/loses is line-count. */
+  font-size: calc(clamp(52px, min(5.3vw, 9vh), 120px) * var(--slideshow-font-scale, 1));
+  /* `--slideshow-fit-scale` (default 1) is a belt-and-braces safety
+   * net applied as a visual transform whenever the intrinsic content
+   * height still exceeds the container after reflow. transform
+   * doesn't affect scrollHeight, so the ResizeObserver's measurement
+   * stays correct across re-applications. Keep transform-origin at
+   * the centre so the squished content doesn't jump toward a corner. */
+  transform: scale(var(--slideshow-fit-scale, 1));
+  transform-origin: center center;
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
@@ -681,10 +685,11 @@ html[data-large-text="true"] .masthead__logo {
    * of a long verse to stretch further before wrapping. Still
    * bounded so it doesn't edge-kiss the corner ornaments. */
   max-width: min(1720px, 95vw);
-  /* overflow:hidden removed — the fit-to-container observer now
-   * shrinks the font until content fits, so nothing ever needs to
-   * be clipped. If the observer fails for any reason we fall back
-   * to visible overflow which is still better than missing text. */
+  max-height: 100%;
+  /* Safety-net overflow — if the observer ever misfires, a very
+   * long verse still can't bleed into the header or footer. In
+   * practice the observer always beats this path. */
+  overflow: hidden;
 }
 .slideshow__body-inner p { margin: 0 0 0.25em; }
 .slideshow__body-inner p:last-child { margin-bottom: 0; }
@@ -2280,7 +2285,11 @@ html[data-large-text="true"] .masthead__logo {
 .prayer-tracker__tasbih-hadith {
   margin: 8px auto 0;
   width: min(1100px, 92vw);
-  padding: 20px 28px;
+  /* Vertical padding uses vh so on short 720p screens the card is
+   * tighter (reclaiming ~20 px of vertical room), while 1440p walls
+   * still get generous breathing room. Line-height steps down on
+   * short screens in the media query below. */
+  padding: clamp(10px, 1.8vh, 22px) clamp(18px, 2vw, 32px);
   background: rgba(226, 183, 106, 0.04);
   border-top: 1px solid var(--m-hairline-faint);
   border-bottom: 1px solid var(--m-hairline-faint);
@@ -2289,17 +2298,27 @@ html[data-large-text="true"] .masthead__logo {
 .prayer-tracker__tasbih-hadith-text {
   margin: 0;
   font-family: var(--m-font-quranic);
-  font-size: clamp(18px, 1.7vw, 30px);
-  line-height: 1.7;
+  font-size: clamp(17px, 1.6vw, 28px);
+  line-height: 1.65;
   color: var(--m-text-primary);
   quotes: none;
 }
 .prayer-tracker__tasbih-hadith-cite {
-  margin-top: 10px;
+  margin-top: 8px;
   font-family: var(--m-font-display);
-  font-size: clamp(14px, 1.1vw, 20px);
+  font-size: clamp(13px, 1vw, 18px);
   color: var(--m-accent-bright);
   font-style: normal;
+}
+/* 720p height budget is tight once the 3 count tiles are drawn.
+ * Shrink the hadith card's vertical footprint further so the whole
+ * stage still fits without scroll. */
+@media (max-height: 780px) {
+  .prayer-tracker__tasbih { gap: 14px; }
+  .prayer-tracker__tasbih-tile { padding: 24px 20px 20px; }
+  .prayer-tracker__tasbih-hadith { padding: 8px 20px; }
+  .prayer-tracker__tasbih-hadith-text { font-size: clamp(15px, 1.4vw, 20px); line-height: 1.5; }
+  .prayer-tracker__tasbih-hadith-cite { margin-top: 4px; font-size: 12px; }
 }
 
 /* .prayer-tracker__dots retired 2026-04-23 — the "remaining" progress

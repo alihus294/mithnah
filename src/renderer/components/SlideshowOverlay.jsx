@@ -97,41 +97,52 @@ export default function SlideshowOverlay({ state }) {
   // Fit-to-container scale. The caretaker's user-set font scale above
   // can push a slide past the body row's visible area — operator
   // 2026-04-23 asked that NO text be clipped outside the frame at any
-  // font size. We measure the natural content height against the
-  // container and apply a down-scale-only factor via CSS var (transform
-  // would ignore the overflow-hidden on the parent). ResizeObserver
-  // fires whenever either the window or the slide changes, so this
-  // stays in sync with Ctrl+/- + slide navigation.
+  // font size. Applied via transform:scale() so the measurement is
+  // never confused by the previous fit: scrollHeight always reports
+  // the un-transformed intrinsic height. Three sources of truth
+  // trigger a re-measure: window resize, slide change, and fontScale
+  // change — the slide gets ONE definitive measurement per render
+  // pass, no observer-driven oscillation.
   const bodyRef = useRef(null);
   const contentRef = useRef(null);
   const [fitScale, setFitScale] = useState(1);
   useEffect(() => {
     if (!state?.active) return;
-    const container = bodyRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
+    // Ask the browser to lay out fontScale's effect first, then
+    // measure. rAF guarantees we read after commit.
+    let cancelled = false;
     const measure = () => {
-      // Compute using the content's NATURAL height (post-text-wrap) and
-      // compare to the container's height. Add a tiny safety margin
-      // so tall glyph ascenders never kiss the boundary.
-      const cH = container.clientHeight;
-      const content0 = content.scrollHeight;
-      if (cH <= 0 || content0 <= 0) return;
-      // currentFit is whatever transform was last applied. Back-
-      // compute the unscaled height (content0 / currentFit) and decide
-      // whether we still need to shrink. Clamp to [0.4, 1] so we never
-      // grow (user controls growth via fontScale) and never vanish.
-      const natural = content0 / (fitScale || 1);
-      const needed = cH / natural;
+      if (cancelled) return;
+      const container = bodyRef.current;
+      const content = contentRef.current;
+      if (!container || !content) return;
+      // Intrinsic height of the content (before transform). transform
+      // is a visual effect — it does NOT affect scrollHeight — so the
+      // value we read here is always the un-scaled size regardless
+      // of the fitScale we previously applied.
+      const intrinsicH = content.scrollHeight;
+      const availableH = container.clientHeight;
+      if (availableH <= 0 || intrinsicH <= 0) return;
+      // 0.98 = 2% safety margin so tall glyph ascenders never kiss
+      // the body boundary during font-scale transitions.
+      const needed = (availableH * 0.98) / intrinsicH;
       const next = Math.max(0.4, Math.min(1, needed));
-      if (Math.abs(next - fitScale) > 0.01) setFitScale(next);
+      setFitScale((prev) => Math.abs(next - prev) > 0.005 ? next : prev);
     };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(container);
-    ro.observe(content);
-    return () => ro.disconnect();
-  }, [state?.active, state?.index, fontScale, fitScale]);
+    const raf = requestAnimationFrame(measure);
+    const onResize = () => { requestAnimationFrame(measure); };
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+    };
+    // fitScale INTENTIONALLY omitted from the dep list — the effect
+    // reads intrinsicH (which doesn't depend on the applied scale)
+    // and sets fitScale, so including it would loop. This is the
+    // only correct usage of the "ignore self-update" pattern here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state?.active, state?.index, fontScale]);
   // Every slide renders at the same type size — previous dynamic scaling
   // (lg/md/sm/xs) caused visible "jumps" between consecutive slides.
   // We paginate 1 verse per slide so scaling is no longer needed.

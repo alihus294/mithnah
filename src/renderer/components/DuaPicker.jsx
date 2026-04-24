@@ -305,18 +305,24 @@ export default function DuaPicker() {
     const title = (draft.title || '').trim().slice(0, 200);
     const body = (draft.body || '').trim().slice(0, 20000);
     if (!title || !body) { setMsg('الرجاء إدخال العنوان والنص'); return; }
-    // Scope the save to whichever tab is currently active.
-    const list = customByTab[tab] || [];
+    // Save to the tab the editor was OPENED on (frozen into
+    // `editor.tab`), not the currently-active tab. Without this, a
+    // caretaker who typed a long zeerah, then accidentally clicked
+    // the Taqibat tab before pressing حفظ, would see their zeerah
+    // land under the taqibat list — baffling data loss from their
+    // perspective.
+    const targetTab = editor?.tab || tab;
+    const list = customByTab[targetTab] || [];
     const next = (() => {
       const exists = list.find((x) => x.id === id);
       const entry = { id, title_ar: title, source: 'مضاف من القائم', body };
       if (exists) return list.map((x) => (x.id === id ? entry : x));
       return [entry, ...list];
     })();
-    setCustomByTab({ ...customByTab, [tab]: next });
-    saveCustomForTab(tab, next);
+    setCustomByTab({ ...customByTab, [targetTab]: next });
+    saveCustomForTab(targetTab, next);
     setEditor(null);
-    const savedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[tab] || 'العنصر';
+    const savedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[targetTab] || 'العنصر';
     setMsg(`تم حفظ ${savedLabel}`);
     dismissWelcome();
   };
@@ -480,7 +486,7 @@ export default function DuaPicker() {
               <button
                 type="button"
                 className="dua-picker__add-btn"
-                onClick={() => setEditor({ id: '', title: '', body: '' })}
+                onClick={() => setEditor({ id: '', title: '', body: '', tab })}
                 title={`أضف ${singularLabel} من طرفك — يُحفظ على هذا الجهاز فقط`}
               >
                 ➕ إضافة {singularLabel}
@@ -589,7 +595,7 @@ export default function DuaPicker() {
                         className="dua-picker__edit"
                         aria-label="تعديل الدعاء"
                         title="تعديل"
-                        onClick={(e) => { e.stopPropagation(); setEditor({ id: item.id, title: item.title_ar, body: item.body || '' }); }}
+                        onClick={(e) => { e.stopPropagation(); setEditor({ id: item.id, title: item.title_ar, body: item.body || '', tab }); }}
                       >✎</button>
                       <button
                         type="button"
@@ -636,7 +642,11 @@ export default function DuaPicker() {
       {editor && (
         <CustomDuaEditor
           initial={editor}
-          tab={tab}
+          /* Pass the editor's FROZEN tab (snapped when it opened)
+             rather than the currently-active tab — the save handler
+             uses this for the target bucket too, so switching tabs
+             mid-edit doesn't misroute the write. */
+          tab={editor.tab || tab}
           onCancel={() => setEditor(null)}
           onSave={saveCustomDua}
         />
