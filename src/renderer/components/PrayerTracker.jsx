@@ -409,7 +409,7 @@ export default function PrayerTracker() {
              ribbon below. The content fills the viewport naturally. */
           <div className="prayer-tracker__display">
             <div className="prayer-tracker__prayer-badge">
-              <div className="prayer-tracker__prayer-label">الصلاة</div>
+              <div className="prayer-tracker__prayer-label">صلاة</div>
               <div className="prayer-tracker__prayer-name">{PRAYER_NAMES_AR[prayer] || 'الصلاة'}</div>
             </div>
             <div className="prayer-tracker__imam">
@@ -435,7 +435,7 @@ export default function PrayerTracker() {
                 prayer / whose imam" next to the current rakah. */}
             <aside className="prayer-tracker__meta">
               <div className="prayer-tracker__prayer-badge">
-                <div className="prayer-tracker__prayer-label">الصلاة</div>
+                <div className="prayer-tracker__prayer-label">صلاة</div>
                 <div className="prayer-tracker__prayer-name">{PRAYER_NAMES_AR[prayer] || 'الصلاة'}</div>
               </div>
               <div className="prayer-tracker__imam">

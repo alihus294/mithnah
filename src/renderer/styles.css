@@ -2100,18 +2100,22 @@ html[data-large-text="true"] .masthead__logo {
   position: relative; z-index: 2;
   flex: 1;
   align-items: center; justify-items: center;
-  gap: clamp(24px, 3vw, 56px);
-  padding: clamp(24px, 3vh, 48px) clamp(32px, 4vw, 80px);
+  gap: clamp(16px, 2vw, 36px);
+  /* Operator 2026-04-24: "مساحات فاضية كثيييييييييره". Halved both
+   * padding axes so the content actually reaches the frame edges.
+   * Old 24-48 px vertical wasted up to 96 px on 4K; new 8-24 px
+   * gives the hero a MUCH bigger canvas. */
+  padding: clamp(8px, 1.2vh, 24px) clamp(16px, 2vw, 40px);
   text-align: center;
 }
 .prayer-tracker__stage--tracking {
   display: grid;
-  /* Narrow meta column + huge hero column. The meta card is just
-   * "prayer name + imam" — doesn't need 1fr of a wide viewport.
-   * Biasing the hero to ~3fr fills what was wasted horizontal space
-   * in the old 1fr:1.7fr split. */
-  grid-template-columns: minmax(300px, 0.9fr) minmax(500px, 3fr);
-  column-gap: clamp(16px, 2vw, 40px);
+  /* Meta column capped at 380px (was unbounded 0.9fr which on a 4K
+   * wall consumed ~500 px of horizontal room for a name badge plus
+   * imam label). Cap it, give the rest to the hero. */
+  grid-template-columns: minmax(240px, 380px) 1fr;
+  column-gap: clamp(16px, 2vw, 48px);
+  width: 100%;
 }
 .prayer-tracker__stage--display-only {
   display: flex; flex-direction: column;
@@ -2124,26 +2128,30 @@ html[data-large-text="true"] .masthead__logo {
 
 /* Display-only block — centred single column that actually uses the
  * vertical real estate instead of floating two pills in a sparse
- * grid. The salawat ribbon below grounds the composition. */
+ * grid. The salawat ribbon below grounds the composition. Widened
+ * 2026-04-24: operator reported wasted space on 1920+ walls. Old
+ * 860 px cap left ~1060 px of horizontal emptiness. */
 .prayer-tracker__display {
   display: flex; flex-direction: column;
-  align-items: center;
-  gap: clamp(24px, 4vh, 56px);
-  width: min(860px, 90vw);
+  align-items: center; justify-content: center;
+  gap: clamp(18px, 3vh, 44px);
+  width: min(1400px, 96vw);
 }
 .prayer-tracker__stage--display-only .prayer-tracker__prayer-badge {
-  padding: clamp(28px, 4vh, 52px) clamp(36px, 5vw, 80px);
+  padding: clamp(18px, 2.5vh, 36px) clamp(24px, 3vw, 56px);
   width: 100%;
 }
 .prayer-tracker__stage--display-only .prayer-tracker__prayer-name {
-  font-size: clamp(88px, 8.5vw, 160px);
+  /* Prayer name fills the wider block — big enough to read from the
+   * back of a large hall. */
+  font-size: clamp(120px, 11vw, 220px);
 }
 .prayer-tracker__stage--display-only .prayer-tracker__imam {
-  padding: clamp(18px, 2.5vh, 28px) clamp(28px, 4vw, 48px);
+  padding: clamp(12px, 2vh, 22px) clamp(20px, 3vw, 40px);
   width: 100%;
 }
 .prayer-tracker__stage--display-only .prayer-tracker__imam-name {
-  font-size: clamp(48px, 4.5vw, 80px);
+  font-size: clamp(56px, 5.5vw, 100px);
 }
 /* Meta column (prayer badge + imam) — vertical stack, right-edge
  * in RTL so it's the first thing the eye lands on. */
@@ -2241,13 +2249,13 @@ html[data-large-text="true"] .masthead__logo {
 }
 .prayer-tracker__cell-headline {
   font-family: var(--m-font-display);
-  /* With the eyebrow removed and the step-dots row retired, the
-   * headline is the only content inside the hero cell — it can
-   * fill the full stage. Cap bumped to 340px (from 300px) so on
-   * 4K screens the word "الثانية" reads from the back of a
-   * large hall. Line-height 1.18 still protects against ascender/
-   * descender clipping on tall Arabic glyphs. */
-  font-size: clamp(160px, 17vw, 340px);
+  /* Operator 2026-04-24 reported the hero still leaves too much
+   * empty space. Floor bumped 160 → 200 px, vw bias 17 → 20 vw,
+   * cap 340 → 420 px so on 1920 / 2560 / 3840 walls the word
+   * "الثانية" actually reaches the edge of its grid cell instead
+   * of floating in the middle of a sparse column. Line-height
+   * 1.18 still protects Arabic ascender/descender glyphs. */
+  font-size: clamp(200px, 20vw, 420px);
   line-height: 1.18;
   color: var(--m-accent-bright);
   text-shadow: 0 0 60px var(--m-accent-glow);
