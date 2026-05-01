@@ -12,7 +12,11 @@ const KNOWN_FEATURES = Object.freeze(Object.keys(defaultFeatures()));
 
 // prayer-config.json schema version. Increment when a breaking change to
 // the shape is introduced; handle upgrades in `migrate()` below.
-const CURRENT_SCHEMA_VERSION = 1;
+//   v1: 0.2.x — fiqh/calendar/maghribDelayMinutes/schemaVersion added
+//   v2: 0.1.6 — `features.largeText` default flipped ON for elderly
+//               operators; one-shot migration force-enables it on
+//               existing installs.
+const CURRENT_SCHEMA_VERSION = 2;
 
 // Persisted config location is passed in (so tests can point at a temp dir).
 // In the app, pass app.getPath('userData').
@@ -198,12 +202,23 @@ function finiteOr(v, fallback) {
 function migrate(obj) {
   const version = Number(obj?.schemaVersion) || 0;
   if (version === CURRENT_SCHEMA_VERSION) return obj;
+  let next = obj;
   // v0 -> v1: we added fiqh/calendar/maghribDelayMinutes/schemaVersion
   // between v0.1.0 and v0.2.x. `coerce` fills these in with sensible
   // defaults so no explicit migration code is needed yet — but the hook
   // exists for future versions.
   if (version < 1) {
-    return { ...obj, schemaVersion: 1 };
+    next = { ...next, schemaVersion: 1 };
+  }
+  // v1 -> v2: largeText default flipped from false to true (0.1.6 elderly
+  // pass). `coerceFeatures` preserves persisted booleans, so without this
+  // explicit step every existing operator stays on the small-font scale
+  // forever. Force-enable once, then mark schema v2 so we never repeat
+  // it (a caretaker who flips it back off in F3 will keep that choice
+  // because we won't run this branch again).
+  if (version < 2) {
+    const features = (next && typeof next.features === 'object' && next.features !== null) ? next.features : {};
+    next = { ...next, features: { ...features, largeText: true }, schemaVersion: 2 };
   }
   // Newer schema written by a future build, opened by an older one.
   // Refuse to load — silently re-coercing would drop unknown keys
@@ -211,7 +226,10 @@ function migrate(obj) {
   // whatever the future build wrote. Throw so load() backs up the
   // file (existing path at line ~177) and starts fresh, preserving
   // the original on disk for forensics + rollback.
-  throw new Error(`config schemaVersion=${version} is newer than this app (expected ${CURRENT_SCHEMA_VERSION}). Refusing to load to avoid data loss; the file has been backed up.`);
+  if (version > CURRENT_SCHEMA_VERSION) {
+    throw new Error(`config schemaVersion=${version} is newer than this app (expected ${CURRENT_SCHEMA_VERSION}). Refusing to load to avoid data loss; the file has been backed up.`);
+  }
+  return next;
 }
 
 async function load(userDataDir) {

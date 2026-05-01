@@ -147,10 +147,12 @@ function defaultFeatures() {
     configBackup: true,
     // Large-text accessibility mode. Aimed at elderly caretakers
     // with presbyopia. Scales every visible font ~1.25× via a CSS
-    // selector on <html>[data-large-text="true"]. Default OFF so
-    // the wall display stays at its design size for younger
-    // operators or larger displays.
-    largeText: false
+    // selector on <html>[data-large-text="true"]. Default ON since
+    // the realistic primary operators (mosque caretakers / imams)
+    // skew older and the bumps to the wall-display clock / next-prayer
+    // block are well within the design's clamp envelope. Operators
+    // running on very large displays can flip it off in F3 settings.
+    largeText: true
   };
 }
 

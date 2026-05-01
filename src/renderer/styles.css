@@ -3183,6 +3183,106 @@ html[data-large-text="true"] .onboarding-overlay__btn { font-size: 19px; min-hei
  * help list terms). The tracker/slideshow/clock already had their
  * own clamp()-based scales so they're untouched. */
 
+/* ── 2026-05-01 elderly-user pass — extend coverage ─────────────────
+ * Default flipped ON in defaults.js so the app ships elderly-friendly
+ * out of the box. This block extends the largeText scale to surfaces
+ * that didn't have variants in the 2026-04-24 pass:
+ *   • DuaPicker (F4) — tabs, items, search, custom-dua badges
+ *   • PrayerTracker (F5) — imam picker, rakah/mode buttons, foot text
+ *   • ImamListEditor — name rows, badges, remove buttons
+ *   • UpdateSection (in F3) — title, version, hints, action button
+ *   • Settings summary panel + connect (QR) panel
+ *   • Inline modals — subtitle, label, error message
+ *   • Onboarding overlay — hints, guides, search results
+ *   • First-run tour — title, body, buttons
+ *   • Update badge + error-boundary toast
+ * Slideshow font sizes are intentionally NOT in this list — they use
+ * --slideshow-font-scale and DOM-measured pagination; bumping them
+ * breaks page boundaries (cf. 2026-04 pagination fixes). */
+
+/* DuaPicker (F4) */
+html[data-large-text="true"] .dua-picker__tab { font-size: 22px; min-height: 56px; padding: 16px 28px; }
+html[data-large-text="true"] .dua-picker__item-title { font-size: 34px; padding-inline-start: 48px; }
+html[data-large-text="true"] .dua-picker__item-subtitle { font-size: 18px; }
+html[data-large-text="true"] .dua-picker__item-source { font-size: 16px; }
+html[data-large-text="true"] .dua-picker__section-title { font-size: 22px; }
+html[data-large-text="true"] .dua-picker__search { font-size: 19px; min-height: 56px; padding: 16px 20px; }
+html[data-large-text="true"] .dua-picker__add-btn { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .dua-picker__secondary-btn { font-size: 18px; min-height: 56px; }
+html[data-large-text="true"] .dua-picker__welcome { font-size: 17px; line-height: 1.7; }
+html[data-large-text="true"] .dua-picker__item-badge { font-size: 15px; padding: 6px 16px; }
+html[data-large-text="true"] .dua-picker__star { width: 48px; height: 48px; font-size: 26px; }
+html[data-large-text="true"] .dua-picker__edit,
+html[data-large-text="true"] .dua-picker__delete { width: 44px; height: 44px; font-size: 20px; }
+html[data-large-text="true"] .dua-picker__edit { bottom: 64px; }
+html[data-large-text="true"] .dua-picker__empty { font-size: 20px; }
+
+/* Settings — search results, summary, update section, connect (QR) panel */
+html[data-large-text="true"] .settings__msg { font-size: 18px; }
+html[data-large-text="true"] .settings__search-result-name { font-size: 21px; }
+html[data-large-text="true"] .settings__search-result-detail { font-size: 16px; }
+html[data-large-text="true"] .settings__summary-title { font-size: 18px; }
+html[data-large-text="true"] .settings__summary-key { font-size: 17px; }
+html[data-large-text="true"] .settings__summary-val { font-size: 19px; }
+html[data-large-text="true"] .settings__update-title { font-size: 21px; }
+html[data-large-text="true"] .settings__update-version { font-size: 16px; }
+html[data-large-text="true"] .settings__update-hint { font-size: 16px; line-height: 1.6; }
+html[data-large-text="true"] .settings__update-btn { font-size: 19px; min-height: 56px; padding: 14px 22px; }
+html[data-large-text="true"] .settings__update-msg { font-size: 17px; }
+html[data-large-text="true"] .settings__connect-title { font-size: 21px; }
+html[data-large-text="true"] .settings__connect-label { font-size: 15px; }
+html[data-large-text="true"] .settings__connect-url { font-size: 19px; }
+
+/* PrayerTracker (F5) — operator-touched controls only.
+ * The hero text (clock, prayer name, rakah counter) already runs on
+ * its own clamp() scale so it's untouched. */
+html[data-large-text="true"] .prayer-tracker__imam-picker-label { font-size: 18px; }
+html[data-large-text="true"] .prayer-tracker__imam-picker-select { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .prayer-tracker__presets-label { font-size: 16px; }
+html[data-large-text="true"] .prayer-tracker__rakah-btn { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .prayer-tracker__mode-btn { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .prayer-tracker__nav-btn { font-size: 20px; min-height: 60px; padding: 14px 24px; }
+html[data-large-text="true"] .prayer-tracker__foot { font-size: 15px; }
+html[data-large-text="true"] .prayer-tracker__help { font-size: 17px; }
+
+/* ImamListEditor (in F3) */
+html[data-large-text="true"] .imam-list-editor__name { font-size: 19px; }
+html[data-large-text="true"] .imam-list-editor__badge { font-size: 14px; padding: 4px 12px; }
+html[data-large-text="true"] .imam-list-editor__remove { width: 40px; height: 40px; font-size: 18px; }
+
+/* Inline modal — extends the existing title/btn rules */
+html[data-large-text="true"] .inline-modal__subtitle { font-size: 17px; line-height: 1.65; }
+html[data-large-text="true"] .inline-modal__label { font-size: 17px; }
+html[data-large-text="true"] .inline-modal__input { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .inline-modal__input--center { font-size: 30px; }
+html[data-large-text="true"] .inline-modal__error { font-size: 17px; }
+
+/* Onboarding overlay — extends the existing title/msg/btn rules */
+html[data-large-text="true"] .onboarding-overlay__subtitle { font-size: 19px; line-height: 1.65; }
+html[data-large-text="true"] .onboarding-overlay__offline { font-size: 18px; }
+html[data-large-text="true"] .onboarding-overlay__hint { font-size: 16px; line-height: 1.65; }
+html[data-large-text="true"] .onboarding-overlay__confirm-label { font-size: 18px; }
+html[data-large-text="true"] .onboarding-overlay__confirm-coords { font-size: 17px; }
+html[data-large-text="true"] .onboarding-overlay__guide { font-size: 17px; line-height: 1.85; }
+html[data-large-text="true"] .onboarding-overlay__search { font-size: 19px; min-height: 56px; }
+html[data-large-text="true"] .onboarding-overlay__result { padding: 14px 18px; min-height: 56px; }
+html[data-large-text="true"] .onboarding-overlay__result-name { font-size: 20px; }
+html[data-large-text="true"] .onboarding-overlay__result-detail { font-size: 16px; }
+
+/* First-run tour */
+html[data-large-text="true"] .first-run-tour__icon { font-size: 50px; }
+html[data-large-text="true"] .first-run-tour__title { font-size: 32px; }
+html[data-large-text="true"] .first-run-tour__body { font-size: 20px; line-height: 1.8; }
+html[data-large-text="true"] .first-run-tour__btn { font-size: 19px; min-height: 60px; padding: 16px 30px; }
+
+/* Update badge + error-boundary toast — caretaker-visible status */
+html[data-large-text="true"] .update-badge { font-size: 17px; padding: 12px 20px; }
+html[data-large-text="true"] .error-boundary-toast { font-size: 17px; max-width: 440px; }
+html[data-large-text="true"] .error-boundary-toast__msg { font-size: 15px; }
+
+/* Floating menu — icons (trigger/item already covered above) */
+html[data-large-text="true"] .floating-menu__item-icon { font-size: 32px; min-width: 44px; }
+
 /* First-run tour — gentle 4-step walkthrough that fires once per
  * machine after onboarding completes. Highlights one Dashboard
  * region at a time and explains what it does. Skipped via
