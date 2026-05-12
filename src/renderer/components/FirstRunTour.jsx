@@ -7,8 +7,9 @@
 // the tour is a per-machine onboarding artifact, not a mosque
 // setting. Removing the localStorage key shows it again.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getConfig, onConfigChanged } from '../lib/ipc.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 const TOUR_KEY = 'mithnah:first-run-tour:seen';
 
@@ -46,6 +47,10 @@ export default function FirstRunTour() {
   // to dismiss the tour forever — elderly operators tap by accident.
   // This layer gives them a second chance.
   const [confirmSkip, setConfirmSkip] = useState(false);
+  // D4-08 — trap focus inside the tour. Nested confirm-skip modal is
+  // handled by useFocusTrap's deepest-dialog logic automatically.
+  const containerRef = useRef(null);
+  useFocusTrap(containerRef, step >= 0 && step < STEPS.length);
 
   // Watch the config so we don't fire the tour ON TOP of the
   // OnboardingOverlay (which always renders first if the operator
@@ -82,7 +87,7 @@ export default function FirstRunTour() {
   const isLast = step === STEPS.length - 1;
 
   return (
-    <div className="first-run-tour" role="dialog" aria-modal="true" dir="rtl">
+    <div ref={containerRef} className="first-run-tour" role="dialog" aria-modal="true" dir="rtl">
       {cur.highlightSelector ? (
         // When a highlight is active, render 4 blurred panels that
         // SURROUND the highlighted region — leaving the rectangle

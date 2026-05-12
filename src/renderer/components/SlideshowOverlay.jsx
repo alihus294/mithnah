@@ -8,6 +8,7 @@ import {
   ImamiStar, ArabesqueCorner, AlayhiSalam, SalawatLine, StarPatternBg
 } from './Ornaments.jsx';
 import { useModalActive } from '../lib/useModalActive.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 
 // ─── Font-scale-aware re-pagination ─────────────────────────────────
 //
@@ -135,23 +136,48 @@ export default function SlideshowOverlay({ state }) {
   // mouse must ALWAYS have a visible exit affordance; keyboard Esc
   // alone is not enough (operator feedback 2026-04-23). Button
   // appears on any mouse movement inside the overlay and fades back
-  // out after 3 s of stillness so the dua text stays the focus.
+  // out after 10 s of stillness so the dua text stays the focus
+  // — 10 s matches the NN/g elderly-research idle floor and gives
+  // a reciter who pauses to breathe time to find the close button
+  // without re-waking it. Was 3 s; bumped 2026-05-08 (Sprint 2).
   const [chromeVisible, setChromeVisible] = useState(true);
   const chromeTimerRef = useRef(null);
+  // D4-05 — trap focus inside the slideshow + restore on close.
+  const containerRef = useRef(null);
+  const lastFocusedRef = useRef(null);
+  const closeBtnRef = useRef(null);
+  useFocusTrap(containerRef, !!state?.active);
   const revealChrome = useCallback(() => {
     setChromeVisible(true);
     if (chromeTimerRef.current) clearTimeout(chromeTimerRef.current);
-    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 3000);
+    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 10000);
   }, []);
   useEffect(() => {
     if (!state?.active) return;
-    // Show on open for 4 s so the caretaker sees the button exists,
-    // then fade until the next mouse move.
+    // Show on open for 10 s so the caretaker sees the button exists,
+    // then fade until the next mouse move. Same NN/g elderly-floor as
+    // revealChrome above.
     setChromeVisible(true);
     if (chromeTimerRef.current) clearTimeout(chromeTimerRef.current);
-    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 4000);
+    chromeTimerRef.current = setTimeout(() => setChromeVisible(false), 10000);
     return () => {
       if (chromeTimerRef.current) { clearTimeout(chromeTimerRef.current); chromeTimerRef.current = null; }
+    };
+  }, [state?.active]);
+
+  // D4-05 — capture the previously-focused element on activate, move
+  // focus to the close button, restore focus to the opener on close.
+  // Mirrors the HelpOverlay/SettingsOverlay pattern (30 ms tick lets
+  // React mount the close button before we focus it).
+  useEffect(() => {
+    if (!state?.active) return;
+    lastFocusedRef.current = document.activeElement;
+    const id = setTimeout(() => closeBtnRef.current?.focus(), 30);
+    return () => {
+      clearTimeout(id);
+      if (lastFocusedRef.current?.focus) {
+        try { lastFocusedRef.current.focus(); } catch (_) {}
+      }
     };
   }, [state?.active]);
 
@@ -305,6 +331,27 @@ export default function SlideshowOverlay({ state }) {
     } catch (_) { /* main not ready — renderer-local nav still works */ }
   }, [effectiveIndex, effectiveSlides, state?.active, state?.index]);
 
+  // Publish effective (font-scale-paginated) sub-index to main so the
+  // socket-broadcast `state` event carries an accurate "X of Y" the
+  // wall is actually showing — main otherwise only knows the base-
+  // slide index, which can drift from the wall during sub-page nav
+  // inside a long base slide. Cleared when the deck closes so
+  // resume-on-crash never restores a stale sub-index.
+  useEffect(() => {
+    const pub = window.electron?.remoteControl?.publishState;
+    if (typeof pub !== 'function') return;
+    if (!state?.active) {
+      pub({ slideshow: null });
+      return;
+    }
+    pub({
+      slideshow: {
+        effectiveIndex,
+        effectiveLength: effectiveSlides.length,
+      },
+    });
+  }, [state?.active, effectiveIndex, effectiveSlides.length]);
+
   // ──── Early return AFTER every hook above ────────────────────────
   // Every hook must run on every render so React can match them by
   // call order. Derived read-only values (deck, slides, slide,
@@ -329,20 +376,24 @@ export default function SlideshowOverlay({ state }) {
 
   return (
     <div
+      ref={containerRef}
       className={`slideshow open ${chromeVisible ? 'slideshow--chrome-visible' : ''}`}
       dir="rtl"
-      aria-live="polite"
       role="region"
       style={{ '--slideshow-font-scale': fontScale }}
       onMouseMove={revealChrome}
       onTouchStart={revealChrome}
     >
       <StarPatternBg opacity={0.04} />
+      {/* D4-06/F-003 — sole live region: only the page counter announces.
+          Body text is no longer aria-live so SRs don't read the entire dua. */}
+      <div className="sr-only" role="status" aria-live="polite">{counter}</div>
 
       {/* Exit button — pinned top-right (LTR → inset-inline-end), in
           the auto-hiding chrome layer. Ensures every elderly mouse-
           only operator sees a "way out" without needing Esc. */}
       <button
+        ref={closeBtnRef}
         type="button"
         className="slideshow__close"
         onClick={onClose}

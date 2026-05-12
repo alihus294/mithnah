@@ -3,7 +3,7 @@
 // The QR + PIN card lives here (never on the main wall view) so the
 // congregation never sees pairing credentials on the broadcast screen.
 
-import { useEffect, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react';
 import {
   getConfig, setConfig, setConfigDebounced, flushPendingConfig,
   listMethods, listCalendars,
@@ -131,10 +131,22 @@ const PLACE_LABEL = {
 };
 
 function Field({ label, children, hint }) {
+  // D4-02 — auto-associate <label> with the inner control via useId.
+  // Caller-supplied id on the child wins; otherwise we inject one and
+  // point htmlFor at it. SR users now hear the field's label correctly.
+  const generatedId = useId();
+  let kid = children;
+  let kidId;
+  if (isValidElement(children)) {
+    kidId = children.props.id || generatedId;
+    if (!children.props.id) {
+      kid = cloneElement(children, { id: generatedId });
+    }
+  }
   return (
     <div className="settings__field">
-      <label className="settings__label">{label}</label>
-      {children}
+      <label className="settings__label" htmlFor={kidId}>{label}</label>
+      {kid}
       {hint && <div className="settings__hint">{hint}</div>}
     </div>
   );
@@ -239,6 +251,25 @@ export default function SettingsOverlay() {
   // Take keyboard ownership away from the slideshow while F3 is open.
   useModalActive(open);
 
+  // Dirty tracker — flips true the moment a text input changes locally
+  // and clears the moment a commit/apply has actually fired. Used by
+  // requestClose() to force-blur (which fires the field's onBlur →
+  // commit → flushPendingConfig) before tearing down the overlay, so
+  // a fast click on the backdrop can't lose typed-but-unblurred text.
+  const dirtyRef = useRef(false);
+  const requestClose = () => {
+    if (dirtyRef.current) {
+      // Force blur to fire onBlur (which triggers commit*). The
+      // already-mounted [open=false] flush effect at line ~257 then
+      // catches whatever the commit kicked into the debounce queue.
+      if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        try { document.activeElement.blur(); } catch (_) {}
+      }
+      dirtyRef.current = false;
+    }
+    setOpen(false);
+  };
+
   // On overlay close, flush any pending debounced config write so the
   // last-touched value is persisted even if the operator hits Esc
   // immediately after changing a dropdown.
@@ -288,7 +319,7 @@ export default function SettingsOverlay() {
       }
       if (open && e.key === 'Escape') {
         e.preventDefault();
-        setOpen(false);
+        requestClose();
       }
     };
     document.addEventListener('keydown', onKey);
@@ -405,7 +436,7 @@ export default function SettingsOverlay() {
       }
     };
     return (
-      <div className="settings-overlay open" role="dialog" aria-modal="true" dir="rtl">
+      <div ref={containerRef} className="settings-overlay open" role="dialog" aria-modal="true" dir="rtl">
         <div className="settings-overlay__bg" onClick={() => setOpen(false)} />
         <div className="settings-overlay__card" style={{ padding: 40, maxWidth: 460, textAlign: 'center' }}>
           <div className="help-overlay__title" style={{ marginBottom: 8 }}>الإعدادات مُقفلة</div>
@@ -425,7 +456,7 @@ export default function SettingsOverlay() {
             {msg && <div className={`settings__msg settings__msg--${msgKind}`} style={{ marginTop: 12 }}>{msg}</div>}
             <div style={{ marginTop: 20, display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button type="submit" className="settings__btn">فتح</button>
-              <button type="button" className="settings__btn" onClick={() => setOpen(false)}>إلغاء · Esc</button>
+              <button type="button" className="settings__btn" onClick={() => setOpen(false)}>إغلاق · Esc</button>
             </div>
           </form>
         </div>
@@ -439,7 +470,7 @@ export default function SettingsOverlay() {
   // the reason.
   if (!config) {
     return (
-      <div className="settings-overlay open" role="dialog" aria-modal="true" dir="rtl">
+      <div ref={containerRef} className="settings-overlay open" role="dialog" aria-modal="true" dir="rtl">
         <div className="settings-overlay__bg" onClick={() => setOpen(false)} />
         <div className="settings-overlay__card" style={{ padding: 40, textAlign: 'center' }}>
           <div className="help-overlay__head">
@@ -503,8 +534,8 @@ export default function SettingsOverlay() {
     }
   };
 
-  const onMosqueName = (e) => setCfg({ ...config, mosqueName: e.target.value });
-  const commitMosqueName = () => apply({ mosqueName: config.mosqueName }, 'info', 'اسم المسجد محفوظ');
+  const onMosqueName = (e) => { dirtyRef.current = true; setCfg({ ...config, mosqueName: e.target.value }); };
+  const commitMosqueName = () => { dirtyRef.current = false; apply({ mosqueName: config.mosqueName }, 'info', 'اسم المسجد محفوظ'); };
 
   const onMethod = (id) => apply({ method: id }, 'info', 'تم تغيير طريقة الحساب');
 
@@ -571,13 +602,13 @@ export default function SettingsOverlay() {
     );
   };
 
-  const onAnnouncementText = (e) => setCfg({ ...config, announcementText: e.target.value });
-  const commitAnnouncementText = () => apply({ announcementText: config.announcementText || '' }, 'info', 'نص الإعلان محفوظ');
+  const onAnnouncementText = (e) => { dirtyRef.current = true; setCfg({ ...config, announcementText: e.target.value }); };
+  const commitAnnouncementText = () => { dirtyRef.current = false; apply({ announcementText: config.announcementText || '' }, 'info', 'نص الإعلان محفوظ'); };
 
-  const onSupportContact = (e) => setCfg({ ...config, supportContact: e.target.value });
-  const commitSupportContact = () => apply({ supportContact: config.supportContact || '' }, 'info', 'بيانات الدعم محفوظة');
-  const onImamName = (e) => setCfg({ ...config, imamName: e.target.value });
-  const commitImamName = () => apply({ imamName: config.imamName || '' }, 'info', 'اسم الإمام محفوظ');
+  const onSupportContact = (e) => { dirtyRef.current = true; setCfg({ ...config, supportContact: e.target.value }); };
+  const commitSupportContact = () => { dirtyRef.current = false; apply({ supportContact: config.supportContact || '' }, 'info', 'بيانات الدعم محفوظة'); };
+  const onImamName = (e) => { dirtyRef.current = true; setCfg({ ...config, imamName: e.target.value }); };
+  const commitImamName = () => { dirtyRef.current = false; apply({ imamName: config.imamName || '' }, 'info', 'اسم الإمام محفوظ'); };
 
   // (undo-stack refresh useEffect moved to the top of the component
   //  with the other hooks — declaring it here, AFTER the two early
@@ -881,7 +912,7 @@ export default function SettingsOverlay() {
 
   return (
     <div ref={containerRef} className="settings-overlay open" role="dialog" aria-modal="true" dir="rtl">
-      <div className="settings-overlay__bg" onClick={() => setOpen(false)} />
+      <div className="settings-overlay__bg" onClick={requestClose} />
       <div className="settings-overlay__card">
         <div className="help-overlay__star help-overlay__star--tr"><ImamiStar size={20} opacity={0.6} /></div>
         <div className="help-overlay__star help-overlay__star--tl"><ImamiStar size={20} opacity={0.6} /></div>
@@ -896,13 +927,17 @@ export default function SettingsOverlay() {
               <div className="help-overlay__subtitle">F3 أو Esc للإغلاق · كل التغييرات تُحفظ فوراً</div>
             </div>
           </div>
-          <button ref={closeBtnRef} className="help-overlay__close" onClick={() => setOpen(false)}>
+          <button ref={closeBtnRef} className="help-overlay__close" onClick={requestClose}>
             إغلاق · Esc
           </button>
         </div>
 
         {msg && (
-          <div className={`settings__msg settings__msg--${msgKind}`}>{saving ? '... ' : ''}{msg}</div>
+          <div
+            className={`settings__msg settings__msg--${msgKind}`}
+            role={msgKind === 'err' ? 'alert' : 'status'}
+            aria-live={msgKind === 'err' ? 'assertive' : 'polite'}
+          >{saving ? '... ' : ''}{msg}</div>
         )}
 
         {/* Tab bar — split the megaform into 4 focused tabs so an
@@ -1355,8 +1390,9 @@ export default function SettingsOverlay() {
             <div className="inline-modal__title">إحداثيات يدوية</div>
             <div className="inline-modal__subtitle">أدخل خط العرض والطول بالأرقام العشرية</div>
             <div className="inline-modal__field">
-              <label className="inline-modal__label">خط العرض (Latitude)</label>
+              <label className="inline-modal__label" htmlFor="coords-lat">خط العرض (Latitude)</label>
               <input
+                id="coords-lat"
                 type="number" step="0.00001" inputMode="decimal"
                 className="inline-modal__input"
                 value={coordsState.lat}
@@ -1365,8 +1401,9 @@ export default function SettingsOverlay() {
               />
             </div>
             <div className="inline-modal__field">
-              <label className="inline-modal__label">خط الطول (Longitude)</label>
+              <label className="inline-modal__label" htmlFor="coords-lng">خط الطول (Longitude)</label>
               <input
+                id="coords-lng"
                 type="number" step="0.00001" inputMode="decimal"
                 className="inline-modal__input"
                 value={coordsState.lng}

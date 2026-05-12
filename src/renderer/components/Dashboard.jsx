@@ -4,10 +4,12 @@
 //   3. Event strip→ today's event OR the nearest upcoming one (never both)
 //   4. Prayers    → 6 cells across, active cell glows; salawat underneath
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getTodayAndNext, hijriToday, getTodayEvents, getConfig,
          onKioskUnlockRequest, kioskQuit, verifySettingsPin,
-         onConfigChanged } from '../lib/ipc.js';
+         onConfigChanged, reportIpcFailure, reportIpcRecovered } from '../lib/ipc.js';
+import { friendlyErrorTitle } from '../lib/errors.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { toArabicDigits, hhmmLocal, formatCountdown, formatClock,
          PRAYER_NAMES_AR, EVENT_KIND_LABEL_AR } from '../lib/format.js';
 import {
@@ -45,13 +47,19 @@ function useIsNarrow() {
 
 function usePrayerTimes() {
   const [state, setState] = useState(null);
+  const failedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const data = await getTodayAndNext(new Date().toISOString());
-        if (!cancelled) setState(data);
-      } catch (_) { /* silent */ }
+        if (cancelled) return;
+        setState(data);
+        if (failedRef.current) { failedRef.current = false; reportIpcRecovered(); }
+      } catch (err) {
+        if (cancelled) return;
+        if (!failedRef.current) { failedRef.current = true; reportIpcFailure(err); }
+      }
     }
     load();
     // When the operator changes method/location/marja/adjustments in
@@ -71,13 +79,19 @@ function usePrayerTimes() {
 
 function useHijri() {
   const [h, setH] = useState(null);
+  const failedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const d = await hijriToday();
-        if (!cancelled) setH(d);
-      } catch (_) { /* silent */ }
+        if (cancelled) return;
+        setH(d);
+        if (failedRef.current) { failedRef.current = false; reportIpcRecovered(); }
+      } catch (err) {
+        if (cancelled) return;
+        if (!failedRef.current) { failedRef.current = true; reportIpcFailure(err); }
+      }
     }
     load();
     const id = setInterval(load, 60 * 60 * 1000);
@@ -88,13 +102,19 @@ function useHijri() {
 
 function useConfig() {
   const [cfg, setCfg] = useState(null);
+  const failedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const c = await getConfig();
-        if (!cancelled) setCfg(c);
-      } catch (_) { /* silent */ }
+        if (cancelled) return;
+        setCfg(c);
+        if (failedRef.current) { failedRef.current = false; reportIpcRecovered(); }
+      } catch (err) {
+        if (cancelled) return;
+        if (!failedRef.current) { failedRef.current = true; reportIpcFailure(err); }
+      }
     }
     load();
     // Subscribe to instant config-changed broadcasts from the main
@@ -117,6 +137,7 @@ function useTodayEvents() {
   const [upcoming, setUpcoming] = useState([]);
   const [hijriEffective, setHijriEffective] = useState(null);
   const [cursor, setCursor] = useState(0);
+  const failedRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -126,7 +147,11 @@ function useTodayEvents() {
         setEvents(data.events || []);
         setUpcoming(data.upcoming || []);
         setHijriEffective(data.hijriEffective || null);
-      } catch (_) {}
+        if (failedRef.current) { failedRef.current = false; reportIpcRecovered(); }
+      } catch (err) {
+        if (cancelled) return;
+        if (!failedRef.current) { failedRef.current = true; reportIpcFailure(err); }
+      }
     }
     load();
     // Refresh every 10 min — the maghrib-pivot rollover flips exactly at
@@ -290,6 +315,10 @@ export default function Dashboard() {
   const [unlock, setUnlock] = useKioskUnlockGuard();
   const [unlockPin, setUnlockPin] = useState('');
   const logoSrc = useMosqueLogo();
+  // D4-01/F-001 — trap focus inside the kiosk-unlock modal so Tab can't
+  // reach the destructive "نعم، إيقاف" from outside, and Esc closes.
+  const unlockRef = useRef(null);
+  useFocusTrap(unlockRef, !!unlock);
 
   const submitKioskQuit = async (pin) => {
     setUnlock((u) => u && { ...u, pending: true, error: '' });
@@ -301,7 +330,7 @@ export default function Dashboard() {
         setUnlock(null);
       }
     } catch (err) {
-      setUnlock((u) => u && { ...u, pending: false, error: 'فشل: ' + err.message });
+      setUnlock((u) => u && { ...u, pending: false, error: friendlyErrorTitle(err) });
     }
   };
 
@@ -324,7 +353,7 @@ export default function Dashboard() {
   // flips the largeText feature flag in F3. CSS does the actual
   // scaling — this just flips a single attribute.
   useEffect(() => {
-    const on = featureOn('largeText', false);
+    const on = featureOn('largeText', true);
     document.documentElement.setAttribute('data-large-text', on ? 'true' : 'false');
   }, [features.largeText]);
 
@@ -435,11 +464,26 @@ export default function Dashboard() {
                 <ImamiStar size={12} opacity={0.8} />
                 <span className="next__rule next__rule--end" />
               </div>
+              {/* Countdown sits directly under "الصلاة القادمة" with no
+                  intermediate label — operator feedback 2026-05-12: the
+                  "الوقت المتبقي" caption was redundant once the pill is
+                  visually tied to the label above it. The "بعد …" prefix
+                  on the value already conveys "remaining". Keeping the
+                  aria-label so screen readers still get the explicit
+                  semantics. */}
+              <div
+                className="next__countdown next__countdown--pill"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                aria-label="الوقت المتبقي للصلاة القادمة"
+              >
+                <span className="next__countdown-value">بعد {formatCountdown(next.at, now.getTime())}</span>
+              </div>
               <div className="next__pair">
                 <div className="next__name">{PRAYER_NAMES_AR[next.name] || next.name}</div>
                 <div className="next__time">{toArabicDigits(hhmmLocal(next.at, clockFmt))}</div>
               </div>
-              <div className="next__countdown">بعد {formatCountdown(next.at, now.getTime())}</div>
             </div>
           )}
         </section>
@@ -484,7 +528,15 @@ export default function Dashboard() {
 
       {/* Kiosk-unlock modal — replaces native confirm()/prompt(). */}
       {unlock && (
-        <div className="inline-modal" role="dialog" aria-modal="true" dir="rtl">
+        <div
+          ref={unlockRef}
+          tabIndex={-1}
+          className="inline-modal"
+          role="dialog"
+          aria-modal="true"
+          dir="rtl"
+          onKeyDown={(e) => { if (e.key === 'Escape') { setUnlock(null); setUnlockPin(''); } }}
+        >
           <div className="inline-modal__bg" />
           <div className="inline-modal__card inline-modal__card--narrow">
             {unlock.mode === 'confirm' ? (
@@ -501,6 +553,7 @@ export default function Dashboard() {
                     type="button"
                     className="inline-modal__btn"
                     onClick={() => setUnlock(null)}
+                    autoFocus
                   >إلغاء</button>
                 </div>
               </>

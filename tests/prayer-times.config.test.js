@@ -4,7 +4,7 @@ const fs = require('fs');
 const fsp = require('fs/promises');
 const path = require('path');
 const os = require('os');
-const { load, loadSync, save, coerce, configPath } = require('../src/main/prayer-times/config');
+const { load, loadSync, save, coerce, migrate, configPath, CURRENT_SCHEMA_VERSION } = require('../src/main/prayer-times/config');
 const { defaultMethodFor, detectRegion } = require('../src/main/prayer-times/defaults');
 
 function tmpDir() {
@@ -106,4 +106,58 @@ test('Region auto-detection picks Shia methods (this is a Shia app)', () => {
 test('detectRegion returns null for polar/ocean points', () => {
   assert.equal(detectRegion(0, -30), null, 'Atlantic ocean -> no region');
   assert.equal(detectRegion(-85, 0), null, 'Antarctica -> no region');
+});
+
+// ─── schemaVersion migrations ───
+// Documents the one-shot v1→v2 elderly-pass flip. Drive `migrate()`
+// directly so the "newer schema" path can throw without being swallowed
+// by `load()`'s corrupt-backup fallback.
+
+test('migrate v1→v2 flips largeText ON even when persisted as false', () => {
+  const v1 = {
+    schemaVersion: 1,
+    features: { largeText: false, ramadanCountdown: true }
+  };
+  const migrated = migrate(v1);
+  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.features.largeText, true,
+    'v1 with largeText=false MUST be force-flipped to true on the v1→v2 step');
+  assert.equal(migrated.features.ramadanCountdown, true,
+    'other feature flags carry over untouched');
+  // End-to-end: a config loaded from disk in this state should also
+  // surface largeText=true after coerce().
+  const final = coerce(migrated);
+  assert.equal(final.features.largeText, true);
+  assert.equal(final.schemaVersion, CURRENT_SCHEMA_VERSION);
+});
+
+test('migrate v1 with no/null features does not crash and produces safe features', () => {
+  for (const features of [null, undefined]) {
+    const v1 = { schemaVersion: 1, features };
+    const migrated = migrate(v1);
+    assert.equal(migrated.schemaVersion, 2);
+    assert.equal(typeof migrated.features, 'object');
+    assert.notEqual(migrated.features, null);
+    assert.equal(migrated.features.largeText, true,
+      'largeText should still default ON after migration even if features was missing');
+    // coerce() must produce a fully-formed feature set with defaults
+    // restored for every known key — no missing keys, no crashes.
+    const final = coerce(migrated);
+    assert.equal(typeof final.features.ramadanCountdown, 'boolean');
+    assert.equal(typeof final.features.autoLaunch, 'boolean');
+    assert.equal(final.features.largeText, true);
+  }
+});
+
+test('migrate refuses to load a schemaVersion newer than CURRENT_SCHEMA_VERSION', () => {
+  assert.throws(
+    () => migrate({ schemaVersion: CURRENT_SCHEMA_VERSION + 1 }),
+    /newer than this app/,
+    'a future-schema file must throw rather than silently re-coercing (which would drop unknown keys on the next save)'
+  );
+  // Sanity: still throws for a far-future version.
+  assert.throws(
+    () => migrate({ schemaVersion: 999 }),
+    /schemaVersion=999/
+  );
 });

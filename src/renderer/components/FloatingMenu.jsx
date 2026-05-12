@@ -15,11 +15,19 @@ import { useIdleVisibility } from '../lib/useIdleVisibility.js';
 // for a technician setting up the wall). Then content, tracker, help.
 // Icons are intentionally monochrome text glyphs (not color emoji) so
 // they share a visual weight with the rest of the Mithnah typography.
+//
+// `kind` defaults to 'fkey' — the click dispatches a synthetic F-key
+// keydown to reuse existing overlay handlers. 'event' items dispatch
+// a custom window event instead — used for the pairing affordance,
+// which is reachable WITHOUT entering the Settings PIN (REVIEW F-005:
+// otherwise an operator who forgot the mobile PIN must enter the
+// Settings PIN to look it up — circular).
 const ITEMS = [
-  { key: 'F3', label: 'الإعدادات',    icon: '⚙',  emit: 'F3', primary: true },
-  { key: 'F4', label: 'مكتبة الأدعية', icon: '❋',  emit: 'F4' },
-  { key: 'F5', label: 'متابعة الصلاة', icon: '☪',  emit: 'F5' },
-  { key: 'F1', label: 'المساعدة',     icon: '?',  emit: 'F1' },
+  { key: 'F3',  label: 'الإعدادات',    icon: '⚙',  emit: 'F3', primary: true },
+  { key: 'F4',  label: 'مكتبة الأدعية', icon: '❋',  emit: 'F4' },
+  { key: 'F5',  label: 'متابعة الصلاة', icon: '☪',  emit: 'F5' },
+  { key: 'PA',  label: 'إقران الجوال',  icon: '✆',  emit: 'mithnah:request-pairing', kind: 'event', shortcut: '' },
+  { key: 'F1',  label: 'المساعدة',     icon: '?',  emit: 'F1' },
 ];
 
 // Exit is separated visually from the main items (destructive action at
@@ -35,11 +43,15 @@ export default function FloatingMenu() {
   const cardRef = useRef(null);
   const buttonRef = useRef(null);
   // Auto-hide the trigger when the operator hasn't touched mouse /
-  // keyboard for 4 s, so the wall display stays visually clean during
-  // the long idle stretches between settings changes. Move the mouse
-  // (or hit any key) to bring it back. The OPEN menu stays visible
-  // while the operator is interacting with it.
-  const userActive = useIdleVisibility(4000);
+  // keyboard for 12 s, so the wall display stays visually clean during
+  // the long idle stretches between settings changes. The 12 s floor
+  // matches the SlideshowOverlay/PrayerTracker chrome timers and gives
+  // an elderly caretaker who walks up to the display enough time to
+  // reach the mouse before the only visible entry point fades — the
+  // earlier 4 s was below NN/g's elderly-research idle floor. Move the
+  // mouse (or hit any key) to bring it back. The OPEN menu stays
+  // visible while the operator is interacting with it.
+  const userActive = useIdleVisibility(12000);
   const showTrigger = userActive || open;
 
   // Close on click-outside / Escape so the menu doesn't sit open
@@ -60,12 +72,16 @@ export default function FloatingMenu() {
     };
   }, [open]);
 
-  const trigger = (fkey) => {
+  const trigger = (item) => {
     setOpen(false);
+    if (item.kind === 'event') {
+      try { window.dispatchEvent(new CustomEvent(item.emit)); } catch (_) {}
+      return;
+    }
     // Dispatch the F-key keydown so existing overlay handlers fire.
     // Synthetic event needs `key` AND `code` so handlers checking
     // either property both match.
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: fkey, code: fkey, bubbles: true }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: item.emit, code: item.emit, bubbles: true }));
   };
 
   return (
@@ -95,11 +111,13 @@ export default function FloatingMenu() {
               type="button"
               className={`floating-menu__item ${it.primary ? 'floating-menu__item--primary' : ''}`}
               role="menuitem"
-              onClick={() => trigger(it.emit)}
+              onClick={() => trigger(it)}
             >
               <span className="floating-menu__item-icon" aria-hidden="true">{it.icon}</span>
               <span className="floating-menu__item-label">{it.label}</span>
-              <span className="floating-menu__item-shortcut" aria-hidden="true">{it.key}</span>
+              {it.kind !== 'event' && (
+                <span className="floating-menu__item-shortcut" aria-hidden="true">{it.key}</span>
+              )}
             </button>
           ))}
           <div className="floating-menu__hint">لا حاجة لحفظ هذه الاختصارات — هذه القائمة دائماً متاحة في زاوية الشاشة</div>

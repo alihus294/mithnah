@@ -15,6 +15,8 @@
 //   error       → red message + retry button
 
 import { useEffect, useState } from 'react';
+import { toArabicDigits } from '../lib/format.js';
+import { friendlyErrorTitle } from '../lib/errors.js';
 
 export default function UpdateSection() {
   const [state, setState] = useState('idle');
@@ -70,7 +72,7 @@ export default function UpdateSection() {
       // the state to 'downloading' → 'ready' on its own; no need to
       // set a success message here.
     } catch (err) {
-      setMessage(err?.message || 'خطأ غير متوقّع أثناء الفحص');
+      setMessage(friendlyErrorTitle(err));
     }
   }
 
@@ -82,7 +84,7 @@ export default function UpdateSection() {
       }
       // On success the process quits, no further UI work to do.
     } catch (err) {
-      setMessage(err?.message || 'خطأ غير متوقّع أثناء إعادة التشغيل');
+      setMessage(friendlyErrorTitle(err));
     }
   }
 
@@ -92,7 +94,7 @@ export default function UpdateSection() {
 
   let label;
   if (state === 'checking')       label = '... جاري الفحص';
-  else if (state === 'downloading') label = percent !== null ? `جاري التنزيل · ${percent}%` : 'جاري التنزيل...';
+  else if (state === 'downloading') label = percent !== null ? `جاري التنزيل · ${toArabicDigits(percent)}٪` : 'جاري التنزيل...';
   else if (ready)                  label = `إعادة تشغيل الآن وتثبيت ${info?.version || ''}`.trim();
   else                             label = 'افحص الآن';
 

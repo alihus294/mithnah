@@ -29,6 +29,13 @@ const updaterIpc = require('./updater/ipc');
 const appFeatures = require('./app-features');
 const { configPath: configPathOf } = require('./prayer-times/config');
 const frameGuard = require('./frame-guard');
+// Destructure `isFromMainWindow` up here (right next to the require) so
+// every IPC handler below resolves the same binding at module-load
+// time. Earlier this lived just before the F3 handlers ~line 1770,
+// which worked only because closures over `const` look up the binding
+// at call time — moving it up removes that footgun for future readers.
+const { isFromMainWindow } = frameGuard;
+const networkCapabilities = require('./network-capabilities');
 const autoContent = require('./auto-content');
 const hijri = require('./hijri');
 const { effectiveHijriForEvents } = require('./bridge-ipc');
@@ -76,9 +83,11 @@ const MOBILE_CONTROL_PORT = 3100;
 // can override via MASJID_REMOTE_PIN. Backwards-compat: if they set a 4-digit
 // PIN in env we still honor it.
 function defaultPin() {
-  // Fixed default "739156" is memorable (includes the old 7391 prefix) so
-  // existing operators can still recognise it; a fresh install derives
-  // from a per-device hash so different deployments don't share PINs.
+  // Per-device PIN: derive from sha256(hostname + username + 'mithnah-pin-v1')
+  // so two installs on different machines don't share the same PIN by
+  // default. The literal "739156" below is only the catch-all if
+  // os.hostname() / os.userInfo() throw — kept for backwards-compat with
+  // earlier installs where that fallback got baked into operator notes.
   try {
     const os = require('os');
     const hash = crypto.createHash('sha256')
@@ -440,7 +449,13 @@ function getRemoteRendererStatePayload() {
 
 function setRemoteRendererState(nextState) {
   if (!nextState || typeof nextState !== 'object' || Array.isArray(nextState)) return;
+  // Shallow merge across publishers so independent renderer slices
+  // (modalActive from useModalActive, slideshow from SlideshowOverlay,
+  // future ones) don't clobber each other on every publish. Earlier
+  // semantics replaced wholesale, which meant the last publisher won
+  // and any prior slice was silently erased on the next emit.
   remoteRendererState = {
+    ...remoteRendererState,
     ...nextState,
     zoom: {
       factor: zoomState.factor,
@@ -1723,6 +1738,33 @@ ipcMain.handle('remote-control:get-status', () => {
   return getRemoteControlStatusPayload();
 });
 
+// Network-capability probe for the PairingModal offline-pairing UX.
+// Read-only — no frame guard needed. The module caches results to bound
+// PowerShell spawn frequency. `force: true` busts the cache so the
+// modal can re-check after the operator likely toggled Mobile Hotspot.
+ipcMain.handle('remote-control:get-network-capabilities', async (_event, payload = {}) => {
+  try {
+    const force = !!(payload && payload.force);
+    const caps = await networkCapabilities.getNetworkCapabilities({ force });
+    return { ok: true, data: caps };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// Deep-link into the Windows "Mobile hotspot" Settings page. Side-effect
+// (launches an external UI) so we frame-guard it. No-op on non-Windows
+// platforms — returns `{ ok: false, error: 'not_supported_on_platform' }`
+// which the renderer surfaces as a fallback hint.
+ipcMain.handle('remote-control:open-hotspot-settings', async (event) => {
+  if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
+  try {
+    return await networkCapabilities.openHotspotSettings();
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 ipcMain.on('remote-control:publish-state', (event, state) => {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (event.sender.id !== mainWindow.webContents.id) return;
@@ -1730,11 +1772,10 @@ ipcMain.on('remote-control:publish-state', (event, state) => {
 });
 
 // --- Feature-related IPC (PIN gate, auto-launch, config I/O, Qibla) ---
-
-// Use the shared frame-guard helper so other IPC modules can reach
-// the same predicate (registered in app.whenReady once mainWindow
-// exists).
-const { isFromMainWindow } = frameGuard;
+// `isFromMainWindow` is the shared frame-guard predicate destructured at
+// the top of this file alongside `require('./frame-guard')`. It only
+// returns a meaningful answer once `frameGuard.register()` has been
+// called inside `app.whenReady` (see the call site near `createWindow`).
 
 ipcMain.handle('app:set-settings-pin', async (event, { pin } = {}) => {
   if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };

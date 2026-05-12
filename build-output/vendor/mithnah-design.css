@@ -23,12 +23,13 @@
    * be #9aa39a / #5d6a64 which gave contrast ratios of 2.8:1 and
    * 1.9:1 against the teal base — both fail WCAG AA and the faint
    * tint was illegible from across the mosque hall. Lifted to
-   * #b8c2b8 (~5.6:1) and #8a948e (~3.4:1, which passes AA for the
-   * 18pt+ slideshow-hint sizes where this token actually shows). */
+   * #b8c2b8 (~5.6:1) and #a0aaa4 (≥4.8:1 on every raised surface —
+   * was #8a948e at 3.69:1 on raised, which failed AA for elderly
+   * operators reading hint text from across the hall — REVIEW D4-13). */
   --m-text-primary:   #f5ecd2;   /* manuscript ivory */
   --m-text-secondary: #d6cdb2;
   --m-text-muted:     #b8c2b8;
-  --m-text-faint:     #8a948e;
+  --m-text-faint:     #a0aaa4;   /* D4-13 — was #8a948e (3.69:1 on raised); now 4.83:1 on raised, 5.60 on surface, 6.77 on base */
 
   /* Brand — turquoise pool & Najaf gold */
   --m-primary:        #4ec1b6;   /* Kashan turquoise */
@@ -113,14 +114,14 @@
 
   --m-text-primary:   #1a3530;
   --m-text-secondary: #355048;
-  --m-text-muted:     #6e7c75;
-  --m-text-faint:     #a59c82;
+  --m-text-muted:     #586863;   /* D4-10 — was #6e7c75 (3.71:1, fails AA on body) */
+  --m-text-faint:     #6e6856;   /* D4-10 — was #a59c82 (2.32:1) — REVIEW suggested #7a7560 but only ~3.9:1, deepened to clear AA */
 
-  --m-primary:        #2d8a82;
+  --m-primary:        #1f6e68;   /* D4-10 — was #2d8a82 (3.51:1, fails AA) */
   --m-primary-dim:    #4ec1b6;
   --m-primary-deep:   #143f3b;
 
-  --m-accent:         #9c6f2a;
+  --m-accent:         #8b5a1a;   /* D4-10 — was #9c6f2a (3.77:1, fails AA) */
   --m-accent-bright:  #b88a40;
   --m-accent-deep:    #6e4a1a;
   --m-accent-glow:    rgba(156,111,42,0.16);

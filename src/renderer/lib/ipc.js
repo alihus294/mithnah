@@ -17,6 +17,25 @@ const unwrap = (resp, label) => {
   return resp.data;
 };
 
+// Public helper — silent background-poll catches that today drop the
+// error on the floor (Dashboard hooks `catch (_) {}`) can call this to
+// surface the failure in the global <ErrorToast>. Component-level
+// catches that already render an inline error must NOT call this — it
+// would produce a duplicate display alongside their own message.
+export function reportIpcFailure(err) {
+  try {
+    window.dispatchEvent(new CustomEvent('mithnah:ipc-failed', { detail: { error: err } }));
+  } catch (_) { /* CustomEvent unsupported — ignore */ }
+}
+
+// Companion to reportIpcFailure: dispatch on a successful retry so a
+// stale toast clears the moment the system recovers.
+export function reportIpcRecovered() {
+  try {
+    window.dispatchEvent(new CustomEvent('mithnah:ipc-recovered'));
+  } catch (_) { /* ignore */ }
+}
+
 export async function getTodayAndNext(isoNow) {
   const resp = await e().prayerTimes.getTodayAndNext(isoNow);
   return unwrap(resp, 'prayer-times:get-today-and-next');
@@ -127,6 +146,22 @@ export async function hijriToday(opts) {
 
 export async function getRemoteStatus() {
   return await e().remoteControl.getStatus();
+}
+
+// Host network capabilities used by PairingModal to decide whether to
+// show the standard LAN QR or guide the operator to enable Windows
+// Mobile Hotspot. `opts.force` busts the main-process cache.
+export async function getNetworkCapabilities(opts) {
+  const resp = await e().remoteControl.getNetworkCapabilities(opts || {});
+  return unwrap(resp, 'remote-control:get-network-capabilities');
+}
+
+// Open the Windows "Mobile hotspot" Settings page (ms-settings deep
+// link). Resolves with `{ ok: true }` on success or
+// `{ ok: false, error }` if the platform doesn't support it. Never
+// throws — PairingModal handles both branches inline.
+export async function openHotspotSettings() {
+  return await e().remoteControl.openHotspotSettings();
 }
 
 export async function getTodayEvents() {

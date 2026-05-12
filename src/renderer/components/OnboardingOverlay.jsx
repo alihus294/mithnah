@@ -23,6 +23,8 @@ import {
 } from '../lib/ipc.js';
 import { toArabicDigits } from '../lib/format.js';
 import { useModalActive } from '../lib/useModalActive.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { friendlyError, friendlyErrorTitle } from '../lib/errors.js';
 import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
 
 export default function OnboardingOverlay() {
@@ -66,6 +68,9 @@ export default function OnboardingOverlay() {
   // Take keyboard ownership so any active slideshow underneath
   // doesn't grab the arrow keys away from the search/result list.
   useModalActive(!!needsOnboarding);
+  // D4-08 — trap Tab inside the onboarding overlay.
+  const containerRef = useRef(null);
+  useFocusTrap(containerRef, !!needsOnboarding && stage !== 'done');
 
   // Probe for location once, after we know the operator needs it.
   useEffect(() => {
@@ -161,7 +166,7 @@ export default function OnboardingOverlay() {
       setStage('done');
     } catch (err) {
       setStage('search');
-      setMsg('فشل الحفظ: ' + err.message);
+      setMsg(friendlyErrorTitle(err));
       setMsgKind('err');
     }
   };
@@ -175,8 +180,9 @@ export default function OnboardingOverlay() {
       await setConfig({ onboardingCompleted: true });
       setStage('done');
     } catch (err) {
+      const f = friendlyError(err);
       setStage('search');
-      setMsg('تعذّر حفظ حالة الإعداد: ' + (err?.message || 'خطأ غير معروف') + ' — يمكنك المتابعة باختيار مدينة، أو إغلاق التطبيق وإعادة المحاولة.');
+      setMsg(`${f.title} — ${f.hint}`);
       setMsgKind('err');
     }
   };
@@ -185,7 +191,7 @@ export default function OnboardingOverlay() {
   if (!needsOnboarding || stage === 'done') return null;
 
   return (
-    <div className="onboarding-overlay open" role="dialog" aria-modal="true" dir="rtl">
+    <div ref={containerRef} className="onboarding-overlay open" role="dialog" aria-modal="true" dir="rtl">
       <div className="onboarding-overlay__bg" />
       <div className="onboarding-overlay__card">
         <div className="help-overlay__star help-overlay__star--tr"><ImamiStar size={20} opacity={0.6} /></div>

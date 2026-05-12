@@ -15,6 +15,7 @@
 // before the dialog appears.
 
 import { useEffect, useState } from 'react';
+import { toArabicDigits } from '../lib/format.js';
 
 export default function UpdateBadge() {
   const [state, setState] = useState('idle');
@@ -48,7 +49,7 @@ export default function UpdateBadge() {
       <div className="update-badge update-badge--downloading" role="status" aria-live="polite" dir="rtl">
         <span className="update-badge__dot" aria-hidden="true" />
         <span className="update-badge__label">
-          {pct !== null ? `جاري تحميل التحديث · ${pct}%` : 'جاري تحميل التحديث'}
+          {pct !== null ? `جاري تحميل التحديث · ${toArabicDigits(pct)}٪` : 'جاري تحميل التحديث'}
         </span>
       </div>
     );

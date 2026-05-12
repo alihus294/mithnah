@@ -9,8 +9,9 @@
 // glancing at the screen.
 
 import { useEffect, useRef, useState } from 'react';
-import { getSnapshot } from '../lib/ipc.js';
+import { getSnapshot, listMethods, listCalendars } from '../lib/ipc.js';
 import { toArabicDigits } from '../lib/format.js';
+import { useFocusTrap } from '../lib/useFocusTrap.js';
 import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
 
 // Help rows must mirror what the app actually does. Previous text
@@ -60,8 +61,17 @@ function Section({ title, rows }) {
 export default function HelpOverlay() {
   const [open, setOpen] = useState(false);
   const [config, setConfig] = useState(null);
+  // Cache the method + calendar registries so we can translate the
+  // stored IDs (e.g. "JafariWide", "Tehran") into the Arabic labels
+  // shown elsewhere in the app — D5-05.
+  const [methods, setMethods] = useState([]);
+  const [calendars, setCalendars] = useState([]);
   const lastFocusedRef = useRef(null);
   const closeBtnRef = useRef(null);
+  // D4-07 — trap Tab inside the F1 overlay; existing lastFocusedRef
+  // pattern below still handles focus restore on close.
+  const containerRef = useRef(null);
+  useFocusTrap(containerRef, open);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -85,9 +95,15 @@ export default function HelpOverlay() {
     let cancelled = false;
     async function load() {
       try {
-        const snap = await getSnapshot();
+        const [snap, ms, cs] = await Promise.all([
+          getSnapshot(),
+          listMethods().catch(() => []),
+          listCalendars().catch(() => []),
+        ]);
         if (cancelled) return;
         setConfig(snap.config);
+        setMethods(Array.isArray(ms) ? ms : []);
+        setCalendars(Array.isArray(cs) ? cs : []);
       } catch (_) {}
     }
     load();
@@ -130,22 +146,25 @@ export default function HelpOverlay() {
   const clockFmtLabel = config?.clockFormat === '12' ? '١٢ ساعة' : '٢٤ ساعة';
   const maghribAdj = Number((config?.adjustmentsMinutes || {}).maghrib) || 0;
 
+  const methodLabel = (methods.find((m) => m.id === config?.method)?.ar) || config?.method || '—';
+  const calendarLabel = (calendars.find((c) => c.id === config?.calendar)?.ar) || config?.calendar || '—';
+
   const configRows = config ? [
     ['اسم المسجد',    config.mosqueName || 'مئذنة'],
     ['اسم الإمام',    config.imamName || '—'],
-    ['طريقة الحساب',  config.method || '—'],
+    ['طريقة الحساب',  methodLabel],
     ['المنطقة',       loc.name || '—'],
     ['الإحداثيات',    Number.isFinite(loc.lat) ? `${toArabicDigits(Number(loc.lat).toFixed(4))}، ${toArabicDigits(Number(loc.lng).toFixed(4))}` : '—'],
     ['دقة GPS',       accText],
     ['مصدر الموقع',   loadOrigin],
-    ['التقويم',       config.calendar || '—'],
+    ['التقويم',       calendarLabel],
     ['إزاحة التقويم', (config.calendarDayOffset || 0) > 0 ? `+${toArabicDigits(config.calendarDayOffset)}` : toArabicDigits(config.calendarDayOffset || 0)],
     ['تعديل المغرب',  maghribAdj === 0 ? 'بدون' : (maghribAdj > 0 ? `+${toArabicDigits(maghribAdj)} د` : `${toArabicDigits(maghribAdj)} د`)],
     ['نظام الساعة',   clockFmtLabel],
   ] : [];
 
   return (
-    <div className="help-overlay open" role="dialog" aria-modal="true" dir="rtl">
+    <div ref={containerRef} className="help-overlay open" role="dialog" aria-modal="true" dir="rtl">
       <div className="help-overlay__bg" />
       <div className="help-overlay__card">
         <div className="help-overlay__star help-overlay__star--tr"><ImamiStar size={20} opacity={0.6} /></div>

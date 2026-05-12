@@ -250,7 +250,7 @@ export default function DuaPicker() {
       if (!cancelled) setItems(Array.isArray(list) ? list : []);
     }).catch((err) => {
       if (!cancelled) {
-        setMsg('فشل التحميل: ' + err.message);
+        setMsg('فشل التحميل — ' + friendlyErrorTitle(err));
         setLoadFailed(true);
       }
     }).finally(() => {
@@ -365,7 +365,7 @@ export default function DuaPicker() {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMsg(`تم تصدير ${totalCount} عنصراً`);
     } catch (err) {
-      setMsg('فشل التصدير: ' + err.message);
+      setMsg('فشل التصدير — ' + friendlyErrorTitle(err));
     }
   };
 
@@ -419,7 +419,7 @@ export default function DuaPicker() {
       setCustomByTab(nextByTab);
       setMsg(`تمّت إضافة ${addedTotal} عنصراً${skippedTotal > 0 ? ` (تخطيت ${skippedTotal} موجود مسبقاً)` : ''}`);
     } catch (err) {
-      setMsg('فشل الاستيراد: ' + err.message);
+      setMsg('فشل الاستيراد — ' + friendlyErrorTitle(err));
     }
   };
 
@@ -532,7 +532,12 @@ export default function DuaPicker() {
         </div>
 
         {msg && (
-          <div className="settings__msg settings__msg--err" style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}>
+          <div
+            className="settings__msg settings__msg--err"
+            role="alert"
+            aria-live="assertive"
+            style={{ display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between' }}
+          >
             <span>{msg}</span>
             {loadFailed && (
               <button
@@ -683,8 +688,9 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
         <div className="inline-modal__title">{initial?.id ? `تعديل ${singular}` : `إضافة ${singular}`}</div>
         <div className="inline-modal__subtitle">يُحفظ على هذا الجهاز فقط — لن يُنقل إلى أجهزة أخرى.</div>
         <div className="inline-modal__field">
-          <label className="inline-modal__label">العنوان</label>
+          <label className="inline-modal__label" htmlFor="dua-editor-title">العنوان</label>
           <input
+            id="dua-editor-title"
             type="text"
             className="inline-modal__input"
             value={title}
@@ -695,8 +701,9 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
           />
         </div>
         <div className="inline-modal__field">
-          <label className="inline-modal__label">النص</label>
+          <label className="inline-modal__label" htmlFor="dua-editor-body">النص</label>
           <textarea
+            id="dua-editor-body"
             className="inline-modal__input inline-modal__textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}

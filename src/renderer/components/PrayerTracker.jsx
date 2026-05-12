@@ -14,8 +14,8 @@
 // Reduced to: imam name → الركعة الأولى → الركعة الثانية → ... →
 // التسليم → تسبيح الزهراء.
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { BrandMark, SalawatLine } from './Ornaments.jsx';
 import { toArabicDigits } from '../lib/format.js';
 import { getConfig, setConfig, getTodayAndNext, onConfigChanged } from '../lib/ipc.js';
 import { useModalActive } from '../lib/useModalActive.js';
@@ -109,31 +109,68 @@ export default function PrayerTracker() {
     return () => clearInterval(id);
   }, []);
 
-  // Control bar (header + presets) auto-hide. We manage the visible
-  // state in React rather than pure CSS :hover because the hidden
-  // controls have pointer-events: none — they can't be hovered to
-  // reveal themselves. Any mouse movement (or touch) inside the
-  // tracker reveals them; a 2.5 s idle hides them again.
-  // :focus-within on the tracker root also keeps them visible for
-  // keyboard-only operators.
+  // Control bar (header + presets + nav buttons + help) auto-hide. We
+  // manage the visible state in React rather than pure CSS :hover
+  // because the hidden controls have pointer-events: none — they
+  // can't be hovered to reveal themselves. Any mouse movement (or
+  // touch) inside the tracker reveals them; a 10 s idle hides them
+  // again — that matches NN/g's elderly-idle-floor and matches
+  // SlideshowOverlay's chrome timer so an imam who walks between
+  // the wall and a side table doesn't re-wake the controls four
+  // times per rakah. :focus-within on the tracker root also keeps
+  // them visible for keyboard-only operators.
+  //
+  // 2026-05-12 — the on-screen NEXT/PREV/RESET buttons + help-text
+  // joined this auto-hide group so the entire `.prayer-tracker__foot`
+  // collapses to just the Salawat ribbon while idle. Big win for
+  // hero rakah cell vertical real estate which operator flagged as
+  // "تضيع مساحة كثيرة".
   const [controlsVisible, setControlsVisible] = useState(false);
   const hideTimerRef = useRef(null);
+  // While the imam <select> has focus the auto-hide is suspended —
+  // operator UX requirement: "لا تخفِ عناصر حرجة أثناء الإدخال/فتح
+  // قائمة الإمام". Opening the native dropdown then idling 10 s
+  // mustn't yank the picker out from under their hand mid-pick.
+  const pickerActiveRef = useRef(false);
+  const armHideTimer = useCallback(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (pickerActiveRef.current) return; // suspended while picker is focused
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 10000);
+  }, []);
   const revealControls = useCallback(() => {
     setControlsVisible(true);
+    armHideTimer();
+  }, [armHideTimer]);
+  const onPickerFocus = useCallback(() => {
+    pickerActiveRef.current = true;
+    setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 2500);
   }, []);
-  // On open: surface the controls for 4 s so the operator can see
+  const onPickerBlur = useCallback(() => {
+    pickerActiveRef.current = false;
+    armHideTimer();
+  }, [armHideTimer]);
+  // On open: surface the controls for 10 s so the operator can see
   // the prayer picker + modes without having to move the mouse.
   useEffect(() => {
     if (!open) return;
     setControlsVisible(true);
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 4000);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 10000);
     return () => {
       if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
     };
   }, [open]);
+  // When the imam-save IPC fails, force-reveal the controls until the
+  // error chip clears so the operator doesn't miss the alert behind a
+  // hidden bar. The error itself clears after 4 s in the picker
+  // handler — by then a fresh 10 s reveal cycle has begun.
+  useEffect(() => {
+    if (!imamSaveError) return;
+    setControlsVisible(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => setControlsVisible(false), 10000);
+  }, [imamSaveError]);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +216,17 @@ export default function PrayerTracker() {
 
   const sequence = buildSequence(rakahs);
   const step = sequence[Math.max(0, Math.min(index, sequence.length - 1))] || null;
+
+  // Picker items shown in the dropdown. If the caretaker has only ever
+  // typed a single legacy `imamName` (no F3 roster yet), surface that
+  // name as the sole picker option so the dropdown is usable instead
+  // of silently collapsing to the empty-state hint. We never invent
+  // names — the value comes from existing config.
+  const pickerItems = useMemo(() => {
+    if (imamList.length > 0) return imamList;
+    const single = (imamName || '').trim();
+    return single ? [single] : [];
+  }, [imamList, imamName]);
 
   const close = useCallback(() => { setOpen(false); setIndex(0); }, []);
   const reset = useCallback(() => setIndex(0), []);
@@ -280,13 +328,15 @@ export default function PrayerTracker() {
               عرض فقط
             </button>
           </div>
-          {imamList.length > 0 && (
+          {pickerItems.length > 0 ? (
             <div className="prayer-tracker__imam-picker">
               <label className="prayer-tracker__imam-picker-label" htmlFor="imam-picker-select">الإمام:</label>
               <select
                 id="imam-picker-select"
                 className="prayer-tracker__imam-picker-select"
                 value={imamName || ''}
+                onFocus={onPickerFocus}
+                onBlur={onPickerBlur}
                 onChange={(e) => {
                   const name = e.target.value;
                   const prev = imamName;
@@ -306,21 +356,33 @@ export default function PrayerTracker() {
                 }}
               >
                 <option value="">— اختر الإمام —</option>
-                {imamList.map((name) => (
+                {pickerItems.map((name) => (
                   <option key={name} value={name}>{name}</option>
                 ))}
                 {/* Current value may not be in the list (e.g. the
-                    caretaker just typed a new name in F3). Show it
-                    anyway so the selection doesn't silently switch. */}
-                {imamName && !imamList.includes(imamName) && (
+                    caretaker just typed a new name in F3 that hasn't
+                    been promoted to the roster yet). Show it anyway
+                    so the selection doesn't silently switch. */}
+                {imamName && !pickerItems.includes(imamName) && (
                   <option key={imamName} value={imamName}>{imamName} (غير محفوظ)</option>
                 )}
               </select>
               {imamSaveError && (
-                <span className="prayer-tracker__imam-picker-error" role="status">
+                <span className="prayer-tracker__imam-picker-error" role="alert">
                   {imamSaveError}
                 </span>
               )}
+            </div>
+          ) : (
+            // Empty-state chip — only when truly no imam name has ever
+            // been configured. As soon as the caretaker types one name
+            // in F3 (legacy `imamName` field or the new `imamList`
+            // editor), the dropdown above takes over.
+            <div className="prayer-tracker__imam-picker prayer-tracker__imam-picker--empty">
+              <span className="prayer-tracker__imam-picker-label">الإمام:</span>
+              <span className="prayer-tracker__imam-picker-hint">
+                أضف الأئمة من F3 → الأساسية لتظهر القائمة هنا
+              </span>
             </div>
           )}
         </div>
@@ -356,18 +418,19 @@ export default function PrayerTracker() {
 
       {/* Stage — mode-aware, single source of truth per mode.
        *
-       *   tracking (default):  [prayer+imam on right]  |  [rakah hero centred]
-       *   tasbih:              3-tile grid spans full width
+       *   tracking (default):  centred vertical flow — صلاة + name on
+       *                        top, gold divider, imam under that, and
+       *                        the giant rakah hero below as the
+       *                        dominant element. No side column.
+       *   tasbih:              3-tile grid spans full width.
        *   display-only:        prayer name + imam in a single centred
-       *                        block — no wasted side columns
+       *                        block — no wasted side columns.
        *
-       * Operator feedback from 0.8.32:
-       *   - "امسح التقدم و رتبها عشان ما يكون فيه مساحة فاضية"
-       *     (remove progress, tidy so no empty space) → progress panel
-       *     retired entirely.
-       *   - "عرض الصلاة فقط، فيه مساحة كبيييييييييره ضايعه"
-       *     (display-only has huge wasted space) → collapse to a
-       *     centred block instead of the 2-col grid.
+       * 2026-05-12 — the previous two-column tracking layout (meta
+       * aside + hero) was retired per operator: the right-hand band
+       * pulled the eye away from the rakah cell and made the hall
+       * scan-from-back-row harder. The new flow puts identity at the
+       * top, hero at the centre, salawat at the bottom.
        */}
       <section className={`prayer-tracker__stage prayer-tracker__stage--${displayOnly ? 'display-only' : (step?.kind === 'tasbih' ? 'tasbih' : 'tracking')}`}>
 
@@ -421,7 +484,7 @@ export default function PrayerTracker() {
                 </>
               ) : (
                 <div className="prayer-tracker__imam-empty">
-                  ضع اسم الإمام من F3 → الأساسية
+                  اختر الإمام من القائمة في الأعلى
                 </div>
               )}
             </div>
@@ -431,14 +494,18 @@ export default function PrayerTracker() {
 
         {!displayOnly && step?.kind === 'rakah' && (
           <>
-            {/* Metadata column — right side in RTL. Sits alongside the
-                giant rakah cell so the screen always shows "which
-                prayer / whose imam" next to the current rakah. */}
-            <aside className="prayer-tracker__meta">
+            {/* Identity block — anchors the stage at the top so the
+                congregation sees "which prayer / whose imam" before
+                their eye drops to the rakah headline. Prayer name is
+                primary, short gold divider, imam under it as a
+                supporting line. Smaller than display-only's prayer
+                badge because the rakah cell is the dominant element. */}
+            <div className="prayer-tracker__identity">
               <div className="prayer-tracker__prayer-badge">
                 <div className="prayer-tracker__prayer-label">صلاة</div>
                 <div className="prayer-tracker__prayer-name">{PRAYER_NAMES_AR[prayer] || 'الصلاة'}</div>
               </div>
+              <div className="prayer-tracker__identity-divider" aria-hidden="true" />
               <div className="prayer-tracker__imam">
                 {imamName ? (
                   <>
@@ -447,11 +514,11 @@ export default function PrayerTracker() {
                   </>
                 ) : (
                   <div className="prayer-tracker__imam-empty">
-                    ضع اسم الإمام من F3 → الأساسية
+                    اختر الإمام من القائمة في الأعلى
                   </div>
                 )}
               </div>
-            </aside>
+            </div>
 
             {/* Giant rakah headline. The eyebrow "الركعة ١ من ٥" was
                 removed per operator request 2026-04-23: the progress
@@ -475,7 +542,13 @@ export default function PrayerTracker() {
 
       <footer className="prayer-tracker__foot">
         {!displayOnly && (
-          <>
+          // Nav controls + help text auto-hide alongside the top
+          // controls-band. When idle, the footer collapses to just
+          // the Salawat ribbon — major space-recovery for the hero
+          // rakah cell. Esc / arrow keys still drive navigation
+          // when the buttons are tucked away, and the Logitech R400
+          // remote works irrespective of visibility.
+          <div className="prayer-tracker__foot-controls">
             <div className="prayer-tracker__on-screen-controls">
               <button type="button" className="prayer-tracker__nav-btn" onClick={prev} disabled={index === 0} aria-label="السابق">
                 → السابق
@@ -488,7 +561,7 @@ export default function PrayerTracker() {
               </button>
             </div>
             <div className="prayer-tracker__help">→ السابق · التالي ← · Home إعادة · Esc إغلاق</div>
-          </>
+          </div>
         )}
         <SalawatLine size="sm" style={{ marginTop: 10 }} />
       </footer>

@@ -56,6 +56,17 @@ input, textarea, [contenteditable="true"] {
   overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 
+/* D4-11/F-002 — honour OS "reduce motion" globally. One override
+ * defangs every keyframe + transition in the renderer. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────────────
  * Design tokens — single source of truth for the spacing scale, radius
  * scale, and z-index layering used across every overlay and widget.
@@ -380,6 +391,40 @@ html[data-large-text="true"] .masthead__logo {
   color: var(--m-accent);
   margin-top: 14px;
   font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.01em;
+}
+/* Countdown pill — sits directly under "الصلاة القادمة". 2026-05-12
+ * operator pass: the "الوقت المتبقي" eyebrow inside the pill was
+ * deleted because the pill already follows the "الصلاة القادمة"
+ * label and the "بعد …" prefix already conveys "remaining". Pill
+ * is a single-line glowing capsule — less chrome, more glance-
+ * ability for elderly viewers across the hall. Padding tightened
+ * (10→8 vertical) to match the single-line content. The
+ * `.next__countdown-eyebrow` rule was removed; its element is no
+ * longer rendered. */
+.next__countdown--pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 4px;
+  margin-bottom: 16px;
+  padding: 8px clamp(28px, 3.4vw, 64px);
+  border: 1.5px solid var(--m-accent);
+  border-radius: var(--m-radius-full);
+  background:
+    radial-gradient(ellipse at 50% 50%, var(--m-accent-glow), transparent 70%),
+    rgba(226, 183, 106, 0.08);
+  box-shadow:
+    0 0 32px var(--m-accent-glow),
+    inset 0 0 18px rgba(226, 183, 106, 0.10);
+  line-height: 1;
+}
+.next__countdown-value {
+  font-family: var(--m-font-display);
+  font-size: clamp(34px, 3.2vw, 68px);
+  color: var(--m-accent-bright);
+  font-feature-settings: 'tnum' 1;
+  text-shadow: 0 0 24px var(--m-accent-glow);
   letter-spacing: 0.01em;
 }
 
@@ -2018,6 +2063,32 @@ html[data-large-text="true"] .masthead__logo {
   background: var(--m-bg-base);
   color: var(--m-text-primary);
 }
+/* Empty-state variant — same pill shell as the populated picker so
+ * the affordance keeps its spot in the controls band, but renders a
+ * muted hint instead of a select. Tells the caretaker exactly where
+ * to add names so the picker becomes useful. */
+.prayer-tracker__imam-picker--empty {
+  background: rgba(11, 31, 30, 0.42);
+  border-color: var(--m-hairline-faint);
+}
+.prayer-tracker__imam-picker-hint {
+  font-family: var(--m-font-body);
+  font-size: 14px;
+  color: var(--m-text-muted);
+  font-style: italic;
+}
+/* Save-error chip — sits inline next to the picker. Same warm
+ * accent border style so it doesn't break the controls-band
+ * palette but reads as alert via the `role="alert"` semantics. */
+.prayer-tracker__imam-picker-error {
+  font-family: var(--m-font-body);
+  font-size: 13px;
+  color: var(--m-danger, #ff8a7a);
+  padding: 2px 10px;
+  border: 1px solid rgba(255, 138, 122, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 138, 122, 0.08);
+}
 .prayer-tracker__brand { flex-shrink: 0; }
 .prayer-tracker__rakah-group {
   display: flex; gap: 8px; flex-wrap: wrap;
@@ -2140,8 +2211,11 @@ html[data-large-text="true"] .masthead__logo {
 }
 
 /* Stage — three modes:
- *   tracking:     2-col grid (meta | rakah hero). No empty progress
- *                 column, no dead space.
+ *   tracking:     single centred vertical flow — identity (prayer +
+ *                 divider + imam) at the top, giant rakah hero below.
+ *                 The earlier two-column meta-aside arrangement pulled
+ *                 the eye off the rakah cell and made back-row scan
+ *                 harder; retired 2026-05-12 per operator.
  *   display-only: single centred column (prayer + imam + salawat).
  *                 Large centre-stage presence.
  *   tasbih:       flex column so the 3-tile grid spans the width.
@@ -2159,12 +2233,9 @@ html[data-large-text="true"] .masthead__logo {
   text-align: center;
 }
 .prayer-tracker__stage--tracking {
-  display: grid;
-  /* Meta column capped at 380px (was unbounded 0.9fr which on a 4K
-   * wall consumed ~500 px of horizontal room for a name badge plus
-   * imam label). Cap it, give the rest to the hero. */
-  grid-template-columns: minmax(240px, 380px) 1fr;
-  column-gap: clamp(16px, 2vw, 48px);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(24px, 3.5vh, 64px);
   width: 100%;
 }
 .prayer-tracker__stage--display-only {
@@ -2205,12 +2276,51 @@ html[data-large-text="true"] .masthead__logo {
 .prayer-tracker__stage--display-only .prayer-tracker__imam-name {
   font-size: clamp(56px, 5.5vw, 100px);
 }
-/* Meta column (prayer badge + imam) — vertical stack, right-edge
- * in RTL so it's the first thing the eye lands on. */
-.prayer-tracker__meta {
+/* Identity block (tracking mode only) — anchors the stage at the top
+ * so the congregation sees "which prayer / whose imam" before the eye
+ * drops to the rakah headline. Single centred column, vertically
+ * compact so the rakah hero below keeps the dominant share of the
+ * canvas. Replaces the retired right-aside meta column (Hijri pill,
+ * live clock) — the Dashboard owns time/date elsewhere. */
+.prayer-tracker__identity {
   display: flex; flex-direction: column;
-  align-items: stretch; gap: var(--m-space-xl);
+  align-items: center; justify-content: flex-start;
+  gap: clamp(14px, 1.8vh, 28px);
+  width: clamp(500px, 80vw, 1400px);
   max-width: 100%;
+}
+/* Short gold divider between prayer name and imam. Width is intentionally
+ * narrow so it reads as a separator, not a frame. The gradient fades to
+ * transparent on both ends to keep the hairline feeling like inscription
+ * detail rather than a hard rule. */
+.prayer-tracker__identity-divider {
+  width: clamp(120px, 14vw, 220px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--m-accent-bright), transparent);
+}
+/* Tracking-mode sizing — prayer name large but smaller than display-only
+ * mode so the rakah hero (clamp 200–420 px) remains dominant. Imam line
+ * sits comfortably below as supporting context. */
+.prayer-tracker__stage--tracking .prayer-tracker__prayer-name {
+  font-size: clamp(96px, 7.5vw, 160px);
+  /* line-height tightened from the default 1.25 because the identity
+   * block stacks above the rakah hero — extra leading would push the
+   * hero further off the optical centre of the stage. */
+  line-height: 1.15;
+  padding: 0.04em 0.15em;
+}
+.prayer-tracker__stage--tracking .prayer-tracker__imam {
+  padding: 0;
+}
+/* No underline on the imam in tracking mode — the gold divider above
+ * already separates identity from the rakah hero, and the underline
+ * would compete with the hero cell's edge. */
+.prayer-tracker__stage--tracking .prayer-tracker__imam::after {
+  display: none;
+}
+.prayer-tracker__stage--tracking .prayer-tracker__imam-name {
+  font-size: clamp(56px, 4.5vw, 96px);
+  line-height: 1.15;
 }
 .prayer-tracker__hero {
   display: flex; flex-direction: column;
@@ -2226,15 +2336,10 @@ html[data-large-text="true"] .masthead__logo {
  * عشان ما يكون فيه مساحة فاضية". The rakah-cell eyebrow now carries
  * the "الركعة N من M" hint so we don't lose the affordance.
  *
- * Narrow screens fall back to a stacked layout so tracking-mode
- * still works on 1024px wall displays. */
-@media (max-width: 1100px) {
-  .prayer-tracker__stage--tracking {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-    gap: var(--m-space-xl);
-  }
-}
+ * The previous 2-column responsive fallback (@media max-width 1100px)
+ * was retired alongside the meta column 2026-05-12 — tracking mode is
+ * now a single vertical flow so narrow walls already render the
+ * identity-above-hero stack natively. */
 /* Imam name — label above a clean name with a gold hairline underneath
  * instead of a pill. Matches the minimal "title card" aesthetic of the
  * prayer-name block. */
@@ -2307,7 +2412,7 @@ html[data-large-text="true"] .masthead__logo {
    * "الثانية" actually reaches the edge of its grid cell instead
    * of floating in the middle of a sparse column. Line-height
    * 1.18 still protects Arabic ascender/descender glyphs. */
-  font-size: clamp(200px, 20vw, 420px);
+  font-size: clamp(180px, 14vw, 300px);
   line-height: 1.18;
   color: var(--m-accent-bright);
   text-shadow: 0 0 60px var(--m-accent-glow);
@@ -2441,8 +2546,40 @@ html[data-large-text="true"] .masthead__logo {
 
 .prayer-tracker__foot {
   position: relative; z-index: 2;
-  padding: 16px 40px 24px;
+  /* Padding halved 2026-05-12 — the foot now mostly renders just
+   * the Salawat ribbon when the nav controls are hidden, so the
+   * old 16/24 vertical cushion was burning real estate the hero
+   * cell could use. The footer expands gracefully when controls
+   * reveal because its content height grows; the slim baseline
+   * keeps idle screens roomier for the stage. */
+  padding: 8px 40px 12px;
   border-top: 1px solid var(--m-hairline-faint);
+}
+/* Auto-hide bundle for the on-screen nav + help text. When the
+ * controls-band is hidden (10 s idle) this collapses too, so the
+ * foot reduces to a slim Salawat-only strip. Keystrokes / remote
+ * still work — visibility only gates the on-screen affordances. */
+.prayer-tracker__foot-controls {
+  opacity: 0;
+  transform: translateY(8px);
+  /* Use grid-rows collapse instead of `display:none` so the
+   * fade-out completes before the row disappears. Aligns with the
+   * top controls-band's transition semantics. */
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    opacity var(--m-motion-standard) ease,
+    transform var(--m-motion-standard) ease,
+    max-height var(--m-motion-standard) ease;
+}
+.prayer-tracker--reveal-controls .prayer-tracker__foot-controls {
+  opacity: 1;
+  transform: translateY(0);
+  /* Generous ceiling so the row's natural height isn't clipped
+   * even with large-text mode pushing buttons to 60 px tall. */
+  max-height: 280px;
+  pointer-events: auto;
 }
 /* Legacy 4px progress sliver removed in 0.8.30 — the new stage uses
  * a column-aligned `.prayer-tracker__progress` panel with its own
@@ -2844,6 +2981,193 @@ html[data-large-text="true"] .masthead__logo {
 /* Relative so the progress bar absolute-positions correctly. */
 .undo-toast { position: fixed; }
 
+/* Global IPC-failure toast — top-center, error-tinted; never queues
+ * (one visible at a time, latest wins). Same shape language as the
+ * undo-toast pill but elevated and accent-error so the operator
+ * notices without being interrupted mid-recitation. */
+.error-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--m-z-toast);
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 14px 20px;
+  background: linear-gradient(180deg, var(--m-bg-raised) 0%, var(--m-bg-surface) 100%);
+  border: 1px solid #b04848;
+  border-radius: var(--m-radius-md, 14px);
+  color: var(--m-text-primary);
+  font-family: var(--m-font-body);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  animation: undoToastIn var(--m-motion-slow) var(--m-ease-standard);
+  max-width: min(560px, 92vw);
+}
+.error-toast__title {
+  font-family: var(--m-font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: #ff8a8a;
+  line-height: 1.5;
+}
+.error-toast__hint {
+  font-size: 15px;
+  color: var(--m-text-secondary);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+.error-toast__close {
+  width: 36px; height: 36px;
+  border-radius: var(--m-radius-full);
+  background: rgba(0, 0, 0, 0.20);
+  color: var(--m-text-muted);
+  border: 1px solid var(--m-hairline-faint);
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 auto;
+  transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
+}
+.error-toast__close:hover { color: var(--m-text-primary); background: rgba(0, 0, 0, 0.40); }
+
+/* Pairing modal — reachable from the FloatingMenu without entering the
+ * Settings PIN (REVIEW F-005). Layout is a two-column row: QR on the
+ * leading edge, big-typeface info on the trailing edge. The card
+ * inherits .inline-modal__card width; we widen it slightly so the QR
+ * has room to render at scannable size. */
+.pairing-modal__card {
+  width: min(540px, 94vw);
+}
+.pairing-modal__row {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+.pairing-modal__qr-wrap {
+  flex: 0 0 auto;
+  background: #fff;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.pairing-modal__qr {
+  width: 168px;
+  height: 168px;
+  display: block;
+}
+.pairing-modal__info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pairing-modal__label {
+  font-size: 14px;
+  color: var(--m-text-secondary);
+  letter-spacing: 0.06em;
+}
+.pairing-modal__url {
+  font-family: var(--m-font-body);
+  font-size: 18px;
+  color: var(--m-text-primary);
+  margin-top: 4px;
+  word-break: break-all;
+}
+.pairing-modal__pin {
+  font-family: var(--m-font-display);
+  font-size: 34px;
+  letter-spacing: 0.18em;
+  color: var(--m-accent-bright);
+  margin-top: 4px;
+}
+.pairing-modal__hint {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--m-text-muted);
+  line-height: 1.6;
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .pairing-modal__row { flex-direction: column; align-items: stretch; }
+  .pairing-modal__qr-wrap { align-self: center; }
+}
+
+/* Offline-pairing guidance — shown when no usable LAN is detected and
+ * the operator needs to enable Windows Mobile Hotspot. Visual weight is
+ * deliberately lower than an error toast (no red border) because this
+ * is a guided next step, not a failure. */
+.pairing-modal__badge {
+  display: block;
+  max-width: fit-content;
+  margin: 4px auto 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-family: var(--m-font-body);
+  letter-spacing: 0.02em;
+  color: var(--m-accent-bright);
+  background: rgba(226, 183, 106, 0.12);
+  border: 1px solid rgba(226, 183, 106, 0.32);
+  text-align: center;
+}
+.pairing-modal__badge--hotspot { color: var(--m-accent-bright); }
+
+.pairing-modal__offline {
+  margin: 4px 0 16px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(226, 183, 106, 0.22);
+  border-radius: 10px;
+  text-align: start;
+}
+.pairing-modal__offline-title {
+  font-family: var(--m-font-body);
+  font-size: 17px;
+  color: var(--m-accent-bright);
+  margin-bottom: 8px;
+}
+.pairing-modal__offline-body {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--m-text-primary);
+}
+.pairing-modal__steps {
+  margin: 10px 0 14px;
+  padding-inline-start: 22px;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--m-text-primary);
+}
+.pairing-modal__steps li { margin-bottom: 4px; }
+.pairing-modal__cta-row {
+  display: flex;
+  justify-content: center;
+  margin: 14px 0 6px;
+}
+.pairing-modal__note {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  color: var(--m-text-muted);
+  line-height: 1.6;
+}
+.pairing-modal__step-warn {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #f4b4b4;
+  line-height: 1.5;
+}
+
+/* Large-text accessibility — bump every offline-guidance string in
+ * lockstep with the rest of the modal so elderly operators don't get a
+ * size jump when the offline path appears. */
+html[data-large-text="true"] .pairing-modal__offline-title { font-size: 21px; }
+html[data-large-text="true"] .pairing-modal__offline-body,
+html[data-large-text="true"] .pairing-modal__steps { font-size: 19px; }
+html[data-large-text="true"] .pairing-modal__badge { font-size: 16px; }
+html[data-large-text="true"] .pairing-modal__note { font-size: 16px; }
+html[data-large-text="true"] .pairing-modal__step-warn { font-size: 16px; }
+
 /* Floating action menu — primary navigation for elderly caretakers
  * who shouldn't need to know that "F3" exists. Trigger sits in the
  * bottom-corner (RTL: bottom-LEFT visually = inset-inline-end), opens
@@ -3154,6 +3478,7 @@ html[data-large-text="true"] .masthead__title { font-size: clamp(34px, 3vw, 68px
 html[data-large-text="true"] .next__name { font-size: clamp(52px, 4.6vw, 96px); }
 html[data-large-text="true"] .next__time { font-size: clamp(64px, 5.8vw, 128px); }
 html[data-large-text="true"] .next__countdown { font-size: clamp(34px, 3.2vw, 66px); }
+html[data-large-text="true"] .next__countdown-value { font-size: clamp(38px, 3.6vw, 76px); }
 html[data-large-text="true"] .dashboard__hijri { font-size: clamp(30px, 2.8vw, 58px); }
 html[data-large-text="true"] .dashboard__greg { font-size: clamp(22px, 1.6vw, 36px); }
 html[data-large-text="true"] .prayer-cell__name { font-size: clamp(26px, 2.2vw, 44px); }
@@ -3726,7 +4051,11 @@ html[data-large-text="true"] .floating-menu__item-icon { font-size: 32px; min-wi
   line-height: 1.5;
 }
 
-/* Accessibility: 48px minimum tap targets on interactive elements */
+/* Accessibility: 48px minimum tap targets on interactive elements.
+ * 48px = Material Design baseline + WCAG 2.5.5 (AAA) floor. The
+ * `largeText` branch elsewhere in this file scales fonts ~1.25× and
+ * pushes the effective hit area higher; the values here are the
+ * defense-in-depth floor for operators who flip largeText off. */
 .dua-picker__item,
 .dua-picker__tab,
 .settings__btn,
@@ -3737,3 +4066,27 @@ html[data-large-text="true"] .floating-menu__item-icon { font-size: 32px; min-wi
   min-height: 48px;
 }
 .help-hint { min-width: 48px; min-height: 48px; }
+/* Dua-picker row icon buttons (favourite star / edit / delete) were
+ * 44×44 (star) and 40×40 (edit/delete) — below the 48px floor above.
+ * `min-width`/`min-height` win over the explicit `width`/`height`
+ * declared on these selectors per CSS spec, so we don't have to
+ * touch the original blocks. */
+.dua-picker__star,
+.dua-picker__edit,
+.dua-picker__delete {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+/* Accessibility: raise body Arabic line-height to 1.7 on dense
+ * reading surfaces. WCAG 1.4.12 paragraph-spacing floor is 1.5×;
+ * Arabic typography norms for elderly readers at presbyopic distance
+ * recommend 1.7–1.8. Scoped narrowly here so we don't disturb the
+ * tuned line-heights on cards / lists / hint chips elsewhere. The
+ * Quranic-text 1.55 at line 706 is intentionally left alone — it's
+ * tuned to the Amiri/Scheherazade metrics, not body Arabic. */
+.help-overlay__body,
+.settings__hint,
+.dua-picker__item-subtitle {
+  line-height: 1.7;
+}

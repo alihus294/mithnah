@@ -11,6 +11,8 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import OnboardingOverlay from './components/OnboardingOverlay.jsx';
 import FirstRunTour from './components/FirstRunTour.jsx';
 import UndoToast from './components/UndoToast.jsx';
+import ErrorToast from './components/ErrorToast.jsx';
+import PairingModal from './components/PairingModal.jsx';
 import { onSlideshowState } from './lib/ipc.js';
 
 // Each overlay gets its own ErrorBoundary so a crash inside one (e.g. a
@@ -37,6 +39,8 @@ export default function App() {
       <ErrorBoundary name="SlideshowOverlay"><SlideshowOverlay state={slideshow} /></ErrorBoundary>
       <ErrorBoundary name="OnboardingOverlay"><OnboardingOverlay /></ErrorBoundary>
       <ErrorBoundary name="UndoToast"><UndoToast /></ErrorBoundary>
+      <ErrorBoundary name="ErrorToast"><ErrorToast /></ErrorBoundary>
+      <ErrorBoundary name="PairingModal"><PairingModal /></ErrorBoundary>
       <ErrorBoundary name="FirstRunTour"><FirstRunTour /></ErrorBoundary>
       <ErrorBoundary name="UpdateBadge"><UpdateBadge /></ErrorBoundary>
     </div>

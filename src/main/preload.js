@@ -31,6 +31,12 @@ contextBridge.exposeInMainWorld('electron', {
     onStatus:     (callback) => bindChannel('remote-control:status', callback),
     onCommand:    (callback) => bindChannel('remote-control:command', callback),
     publishState: (state) => ipcRenderer.send('remote-control:publish-state', state),
+    // Snapshot of host networking state (Wi-Fi adapter present, hotspot
+    // interface active, best LAN IPv4, platform). Feeds the
+    // PairingModal offline-pairing UX. `opts.force` busts the cache.
+    getNetworkCapabilities: (opts) => ipcRenderer.invoke('remote-control:get-network-capabilities', opts || {}),
+    // Deep-link to Windows Settings → Network & Internet → Mobile hotspot.
+    openHotspotSettings:    () => ipcRenderer.invoke('remote-control:open-hotspot-settings'),
   },
   prayerTimes: {
     listMethods:     () => ipcRenderer.invoke('prayer-times:list-methods'),

@@ -58,16 +58,27 @@
     }
     return `${String(h).padStart(2, '0')}:${mm}`;
   };
+  // Format a raw seconds count into a human-readable Arabic delay.
+  // Used for the 429 lockout copy where the server hands back a
+  // `retryAfterSec` integer; an elderly caretaker should not have to
+  // mentally convert "٩٠٠ ثانية" into 15 minutes (WCAG 3.1.5 reading
+  // level). `withPrefix=true` adds "بعد" so the same helper drives the
+  // schedule-countdown caption used by the dashboard tab.
+  const formatRetryDelay = (sec, withPrefix = false) => {
+    const total = Math.max(0, Math.floor(Number(sec) || 0));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const prefix = withPrefix ? 'بعد ' : '';
+    if (h > 0) return `${prefix}${toArabicDigits(h)} ساعة و ${toArabicDigits(m)} دقيقة`;
+    if (m > 0) return `${prefix}${toArabicDigits(m)} دقيقة و ${toArabicDigits(s)} ثانية`;
+    return `${prefix}${toArabicDigits(s)} ثانية`;
+  };
   const countdown = (iso, now = Date.now()) => {
     if (!iso) return '—';
     const target = new Date(iso).getTime();
     const diffSec = Math.max(0, Math.floor((target - now) / 1000));
-    const h = Math.floor(diffSec / 3600);
-    const m = Math.floor((diffSec % 3600) / 60);
-    const s = diffSec % 60;
-    if (h > 0) return `بعد ${toArabicDigits(h)} ساعة و ${toArabicDigits(m)} دقيقة`;
-    if (m > 0) return `بعد ${toArabicDigits(m)} دقيقة و ${toArabicDigits(s)} ثانية`;
-    return `بعد ${toArabicDigits(s)} ثانية`;
+    return formatRetryDelay(diffSec, true);
   };
   const escapeHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -104,7 +115,7 @@
     }
     if (resp.status === 429) {
       const data = await resp.json().catch(() => ({}));
-      throw new Error(`محاولات متكرّرة — حاول بعد ${toArabicDigits(data.retryAfterSec || 900)} ثانية`);
+      throw new Error(`محاولات متكرّرة — حاول ${formatRetryDelay(data.retryAfterSec || 900, true)}`);
     }
     if (!resp.ok) {
       // Surface remaining-attempts hint when the server provides it in
@@ -166,7 +177,7 @@
     if (resp.status === 429) {
       const data = await resp.json().catch(() => ({}));
       const retrySec = Number(data.retryAfterSec) || Number(resp.headers.get('Retry-After')) || 5;
-      throw new Error(`تم حظر المحاولات مؤقتاً — أعد بعد ${toArabicDigits(retrySec)} ثانية`);
+      throw new Error(`تم حظر المحاولات مؤقتاً — أعد ${formatRetryDelay(retrySec, true)}`);
     }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.message || ('خطأ ' + resp.status));
@@ -400,8 +411,53 @@
       });
     });
     document.querySelectorAll('[data-slide]').forEach((btn) => {
+      // CLOSE is destructive — it kills the slideshow mid-recitation
+      // and the operator cannot restore the same position with one
+      // tap. The 150 ms guardedClick cooldown blocks spam taps but
+      // not the SINGLE accidental tap by an elderly user with
+      // trembling hands (REVIEW D2-14). Two-tap confirm: first tap
+      // re-labels the button to "تأكيد الإنهاء؟" for 4 s; the second
+      // tap inside that window actually fires CLOSE; tapping any
+      // other slideshow button or waiting out the 4 s reverts to the
+      // original label. Other commands (NEXT/PREV/BLANK) keep the
+      // single-tap flow — they're recoverable.
+      const command = btn.getAttribute('data-slide');
+      if (command === 'CLOSE') {
+        let confirmTimer = null;
+        const originalLabel = btn.textContent;
+        const resetBtn = () => {
+          btn.textContent = originalLabel;
+          btn.removeAttribute('data-armed');
+          if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+        };
+        // Disarm if the operator taps another slideshow control
+        // (NEXT/PREV/BLANK) — they're staying with the recitation,
+        // so a stale armed CLOSE button is misleading.
+        document.querySelectorAll('[data-slide]').forEach((other) => {
+          if (other === btn) return;
+          other.addEventListener('click', () => {
+            if (btn.getAttribute('data-armed') === 'true') resetBtn();
+          });
+        });
+        guardedClick(btn, async () => {
+          if (btn.getAttribute('data-armed') !== 'true') {
+            btn.setAttribute('data-armed', 'true');
+            btn.textContent = 'تأكيد الإنهاء؟';
+            if (confirmTimer) clearTimeout(confirmTimer);
+            confirmTimer = setTimeout(resetBtn, 4000);
+            return;
+          }
+          resetBtn();
+          try {
+            await authedPost('/api/slideshow/command', { command });
+            toast('ctrl-toast', labelFor('slide', command) + ' ✓', 'ok');
+          } catch (err) {
+            toast('ctrl-toast', err.message, 'err');
+          }
+        });
+        return;
+      }
       guardedClick(btn, async () => {
-        const command = btn.getAttribute('data-slide');
         try {
           await authedPost('/api/slideshow/command', { command });
           toast('ctrl-toast', labelFor('slide', command) + ' ✓', 'ok');

@@ -77,7 +77,11 @@ function defaultFiqhFor(lat, lng) {
 // location, so this is only the pre-detection fallback.
 function defaultConfig(lat = 32.0256, lng = 44.3269) {
   return {
-    schemaVersion: 1,
+    // Hardcoded rather than imported from config.js to avoid the
+    // circular dep (config.js requires defaults.js). Keep in lockstep
+    // with CURRENT_SCHEMA_VERSION in config.js — a mismatch makes
+    // every fresh install do a no-op migrate cycle on first reload.
+    schemaVersion: 2,
     location: { lat, lng, name: 'Najaf' },
     method: defaultMethodFor(lat, lng),
     madhab: 'Shafi',
