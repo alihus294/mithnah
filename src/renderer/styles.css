@@ -1789,11 +1789,11 @@ html[data-large-text="true"] .dashboard__mosque-logo {
   margin-top: auto;
 }
 /* On custom cards, edit + delete buttons live at bottom-right (RTL)
- * occupying ~100 px on the inline-end side. Clear that band on the
+ * occupying ~120 px on the inline-end side. Clear that band on the
  * meta row so a long source like "مضاف من القائم — مفاتيح الجنان"
- * doesn't slide under the buttons. delete=12+40, edit=60+40 → 112. */
+ * doesn't slide under the buttons. delete=12+48, edit=72+48 → 128. */
 .dua-picker__item--custom .dua-picker__item-meta {
-  padding-inline-end: 112px;
+  padding-inline-end: 128px;
 }
 .dua-picker__item-pages {
   display: inline-flex; align-items: center;
@@ -2007,7 +2007,7 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .dua-picker__delete {
   position: absolute;
   bottom: 12px;
-  width: 40px; height: 40px;
+  width: 48px; height: 48px;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.24);
   border: 1px solid var(--m-hairline-faint);
@@ -2018,7 +2018,7 @@ html[data-large-text="true"] .dashboard__mosque-logo {
   transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
 }
 .dua-picker__delete { inset-inline-end: 12px; }
-.dua-picker__edit   { inset-inline-end: 60px; }
+.dua-picker__edit   { inset-inline-end: 72px; }
 .dua-picker__edit:hover   { background: rgba(226, 183, 106, 0.16); color: var(--m-accent-bright); }
 .dua-picker__delete:hover { background: rgba(240, 128, 96, 0.16); color: #ffb3a6; }
 
@@ -3681,11 +3681,11 @@ html[data-large-text="true"] .dua-picker__item-badge { font-size: 15px; padding:
 html[data-large-text="true"] .dua-picker__item-pages { font-size: 16px; padding: 5px 16px; }
 html[data-large-text="true"] .dua-picker__star { width: 48px; height: 48px; font-size: 26px; }
 html[data-large-text="true"] .dua-picker__edit,
-html[data-large-text="true"] .dua-picker__delete { width: 44px; height: 44px; font-size: 20px; }
+html[data-large-text="true"] .dua-picker__delete { width: 56px; height: 56px; font-size: 22px; }
 /* Wider edit button needs a wider horizontal offset so the two icons
  * still sit side-by-side without overlapping (delete at end:12,
- * edit one button-width + gap to its inside). */
-html[data-large-text="true"] .dua-picker__edit { inset-inline-end: 64px; }
+ * edit one button-width + gap to its inside). 12 + 56 + 12 = 80. */
+html[data-large-text="true"] .dua-picker__edit { inset-inline-end: 80px; }
 html[data-large-text="true"] .dua-picker__empty { font-size: 20px; }
 
 /* Settings — search results, summary, update section, connect (QR) panel */
