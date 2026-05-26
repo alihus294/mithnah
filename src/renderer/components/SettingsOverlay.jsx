@@ -441,6 +441,7 @@ export default function SettingsOverlay() {
         <div className="settings-overlay__card" style={{ padding: 40, maxWidth: 460, textAlign: 'center' }}>
           <div className="help-overlay__title" style={{ marginBottom: 8 }}>الإعدادات مُقفلة</div>
           <div className="help-overlay__subtitle" style={{ marginBottom: 20 }}>أدخل رمز PIN لفتح الإعدادات</div>
+          <div className="settings__hint" style={{ marginBottom: 16 }}>٤ إلى ٨ أرقام</div>
           <form onSubmit={onSubmit}>
             <input
               type="password"
