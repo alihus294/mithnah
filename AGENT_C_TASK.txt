@@ -1,0 +1,1 @@
+You are Agent C. Read the file AGENT_C_PLAN.md in this directory and execute ALL tasks listed there. Apply every fix exactly as specified. After each fix, verify it works. Report progress as you go.

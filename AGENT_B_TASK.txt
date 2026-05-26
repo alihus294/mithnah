@@ -1,0 +1,1 @@
+You are Agent B. Read the file AGENT_B_PLAN.md in this directory and execute ALL tasks listed there. Apply every fix exactly as specified. After each fix, verify it works. Report progress as you go.
