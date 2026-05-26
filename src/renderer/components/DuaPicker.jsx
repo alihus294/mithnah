@@ -841,7 +841,23 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
             onChange={(e) => setBody(e.target.value)}
             placeholder={`اكتب أو الصق نص ${singular === 'دعاء' ? 'الدعاء' : singular === 'زيارة' ? 'الزيارة' : 'التعقيب'} بالكامل هنا...`}
             rows={10}
+            maxLength={20000}
           />
+          {/* Live counter so a long ziyarah (eg. Ashura zeerah) doesn't
+              silently lose tail content to the saveCustomDua slice(20000)
+              cap. Turns muted-red once within 2 000 chars of the limit
+              to nudge the operator to trim before they paste more. */}
+          <div
+            className="inline-modal__hint"
+            style={{
+              textAlign: 'end',
+              fontSize: 14,
+              marginTop: 6,
+              color: body.length >= 18000 ? '#e89898' : 'var(--m-text-muted)',
+            }}
+          >
+            {toArabicDigits(body.length)} / {toArabicDigits(20000)}
+          </div>
         </div>
         <div className="inline-modal__buttons">
           <button
