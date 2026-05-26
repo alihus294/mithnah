@@ -9,6 +9,7 @@ import { ImamiStar, BrandMark, SalawatLine } from './Ornaments.jsx';
 import { friendlyErrorTitle } from '../lib/errors.js';
 import { useModalActive } from '../lib/useModalActive.js';
 import { useFocusTrap } from '../lib/useFocusTrap.js';
+import { toArabicDigits } from '../lib/format.js';
 
 // localStorage keys for the two persistence stores. Kept tiny and
 // scoped so a future migration is trivial. We only persist IDs (not
@@ -125,6 +126,29 @@ async function openDeck(kind, id) {
   await el.slideshow.openShia(kind, id);
 }
 
+// Approximate text-page count surfaced on each card so the operator
+// knows up-front how long a dua is before opening it. Built-in items
+// carry a pre-chunked `slides` array (one page per `text` entry);
+// custom items only carry the raw `body` string since the main-process
+// chunker runs lazily at openCustom time. We mirror the chunker's
+// rules here for custom (sub-lines wrapped at ~90 chars, ≤2 sub-lines
+// per page) so the badge agrees with what the slideshow actually
+// renders within ±1 page.
+function countPagesForItem(item) {
+  if (Array.isArray(item?.slides)) {
+    return item.slides.filter((s) => s && s.kind === 'text').length;
+  }
+  const body = String(item?.body || '').trim();
+  if (!body) return 0;
+  let sublineCount = 0;
+  for (const raw of body.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    sublineCount += Math.max(1, Math.ceil(line.length / 90));
+  }
+  return Math.max(1, Math.ceil(sublineCount / 2));
+}
+
 export default function DuaPicker() {
   const [open, setOpen] = useState(false);
   // Take keyboard ownership while the picker is open so the
@@ -157,6 +181,11 @@ export default function DuaPicker() {
   // Editing state for the custom-dua form. null = closed;
   // { id, title, body } = editing (or creating if id is a new UUID).
   const [editor, setEditor] = useState(null);
+  // Favorites-only filter. Activated by the FloatingMenu "⭐ المفضّلة"
+  // shortcut so the caretaker reaches their starred items in one click
+  // instead of opening F4 → scrolling → finding the favorites strip.
+  // Resets when the picker closes so the next F4 open is a normal view.
+  const [favoritesMode, setFavoritesMode] = useState(false);
   const lastFocusedRef = useRef(null);
   const closeBtnRef = useRef(null);
   const containerRef = useRef(null);
@@ -193,15 +222,20 @@ export default function DuaPicker() {
   }, [items, customCurrent]);
 
   const filteredItems = useMemo(() => {
-    if (!debouncedQuery.trim()) return mergedItems;
+    let base = mergedItems;
+    if (favoritesMode) {
+      const favSet = new Set(favorites);
+      base = base.filter((it) => favSet.has(`${tab}:${it.id}`));
+    }
+    if (!debouncedQuery.trim()) return base;
     const q = debouncedQuery.trim().toLowerCase();
-    return mergedItems.filter((it) =>
+    return base.filter((it) =>
       (it.title_ar || '').toLowerCase().includes(q) ||
       (it.title || '').toLowerCase().includes(q) ||
       (it.subtitle_ar || '').toLowerCase().includes(q) ||
       (it.id || '').toLowerCase().includes(q)
     );
-  }, [mergedItems, debouncedQuery]);
+  }, [mergedItems, debouncedQuery, favoritesMode, favorites, tab]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -231,6 +265,18 @@ export default function DuaPicker() {
     });
     return off;
   }, []);
+
+  // FloatingMenu "⭐ المفضّلة" shortcut. Opens the picker AND flips on
+  // the favorites-only filter so the operator lands directly on their
+  // starred items instead of scrolling through the whole library.
+  useEffect(() => {
+    const onFav = () => { setOpen(true); setFavoritesMode(true); };
+    window.addEventListener('mithnah:request-favorites', onFav);
+    return () => window.removeEventListener('mithnah:request-favorites', onFav);
+  }, []);
+  // Reset favoritesMode when the picker closes so the next plain F4 open
+  // shows the full library, not the last favorites-only view.
+  useEffect(() => { if (!open) setFavoritesMode(false); }, [open]);
 
   // Retry counter — bumped by the "إعادة المحاولة" button so the
   // loader effect can re-run on demand.
@@ -460,7 +506,7 @@ export default function DuaPicker() {
           ))}
         </div>
 
-        {welcomeShown && tab === 'duas' && (
+        {welcomeShown && tab === 'duas' && !favoritesMode && (
           <div className="dua-picker__welcome" role="note">
             <span>
               <strong>مرحباً بمكتبتك.</strong>
@@ -472,6 +518,19 @@ export default function DuaPicker() {
               aria-label="إخفاء الترحيب"
               onClick={dismissWelcome}
             >×</button>
+          </div>
+        )}
+
+        {favoritesMode && (
+          <div className="dua-picker__favorites-banner" role="note">
+            <span>⭐ <strong>تعرض المفضّلة فقط</strong> — استخدم التبويبات أعلاه للتنقل بين أنواع المفضّلة.</span>
+            <button
+              type="button"
+              className="dua-picker__favorites-banner-exit"
+              aria-label="إظهار كل العناصر"
+              title="إظهار كل العناصر"
+              onClick={() => setFavoritesMode(false)}
+            >إظهار الكل</button>
           </div>
         )}
 
@@ -556,13 +615,27 @@ export default function DuaPicker() {
           )}
           {!loading && mergedItems.length > 0 && (() => {
             const filtered = filteredItems;
-            if (filtered.length === 0) return <div className="dua-picker__empty">لا نتائج لـ "{query}"</div>;
+            if (filtered.length === 0) {
+              if (favoritesMode) {
+                const tabLabel = TABS.find((t) => t.id === tab)?.label || '';
+                return (
+                  <div className="dua-picker__empty">
+                    لا توجد عناصر مفضّلة في {tabLabel}
+                    <div style={{ marginTop: 12, fontSize: 14 }}>
+                      اضغط ☆ على أي عنصر لإضافته للمفضّلة، أو جرّب تبويباً آخر.
+                    </div>
+                  </div>
+                );
+              }
+              return <div className="dua-picker__empty">لا نتائج لـ "{query}"</div>;
+            }
 
             // Build the recent + favorite item lists for the CURRENT
             // tab. We only show these sections when a search hasn't
-            // narrowed things down — otherwise the operator typed a
-            // query and just wants the matches.
-            const showQuickAccess = !debouncedQuery.trim();
+            // narrowed things down AND we're not already in
+            // favorites-only mode (where the whole list IS the
+            // favorites — a "Favorites" sub-section would be noise).
+            const showQuickAccess = !debouncedQuery.trim() && !favoritesMode;
             const tabPrefix = `${tab}:`;
             const favItems = showQuickAccess
               ? favorites.filter(k => k.startsWith(tabPrefix))
@@ -579,6 +652,7 @@ export default function DuaPicker() {
 
             const renderCard = (item) => {
               const isCustom = typeof item.id === 'string' && item.id.startsWith('custom:');
+              const pageCount = countPagesForItem(item);
               return (
                 <button
                   key={`${tab}:${item.id}`}
@@ -591,9 +665,16 @@ export default function DuaPicker() {
                   {item.subtitle_ar && (
                     <div className="dua-picker__item-subtitle">{item.subtitle_ar}</div>
                   )}
-                  {item.source && (
-                    <div className="dua-picker__item-source">المصدر: {item.source}</div>
-                  )}
+                  <div className="dua-picker__item-meta">
+                    {pageCount > 0 && (
+                      <span className="dua-picker__item-pages">
+                        {pageCount === 1 ? 'صفحة واحدة' : `${toArabicDigits(pageCount)} صفحة`}
+                      </span>
+                    )}
+                    {item.source && (
+                      <span className="dua-picker__item-source">المصدر: {item.source}</span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     className={`dua-picker__star ${isFavorite(item) ? 'dua-picker__star--on' : ''}`}
@@ -640,7 +721,9 @@ export default function DuaPicker() {
                   </div>
                 )}
                 <div className="dua-picker__section">
-                  {(favItems.length > 0 || recentItems.length > 0) && (
+                  {favoritesMode ? (
+                    <div className="dua-picker__section-title">⭐ المفضّلة</div>
+                  ) : (favItems.length > 0 || recentItems.length > 0) && (
                     <div className="dua-picker__section-title">📚 كل العناصر</div>
                   )}
                   <div className="dua-picker__grid">{filtered.map(renderCard)}</div>

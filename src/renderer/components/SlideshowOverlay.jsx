@@ -208,6 +208,25 @@ export default function SlideshowOverlay({ state }) {
   //     looks ugly.
   const measurerRef = useRef(null);
   const [paginatedSlides, setPaginatedSlides] = useState([]);
+  // Bump this on window resize so re-pagination runs when the wall
+  // display gets resized (operator drags the window, plugs in a new
+  // monitor, or rotates the display). Previously pagination only ran
+  // on slides/fontScale changes — a resize would leave pages cut to
+  // the old viewport height.
+  const [viewportTick, setViewportTick] = useState(0);
+  useEffect(() => {
+    if (!state?.active) return;
+    let raf = 0;
+    const onResize = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setViewportTick((t) => t + 1));
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      cancelAnimationFrame(raf);
+    };
+  }, [state?.active]);
   useEffect(() => {
     if (!state?.active) return;
     if (!Array.isArray(state.slides) || state.slides.length === 0) {
@@ -225,7 +244,30 @@ export default function SlideshowOverlay({ state }) {
         setPaginatedSlides(repaginate(state.slides, fontScale));
         return;
       }
-      const containerH = m.clientHeight;
+      // Mirror the EXACT DOM structure of the visible body — wrapper
+      // div + <p> per verse with the 0.25em paragraph margin. Earlier
+      // builds set raw textContent with white-space: pre-wrap, which
+      // underestimated height (verses ran into each other instead of
+      // each getting its own 0.25em gap) → measurer said "fits" when
+      // the visible side overflowed. That's the "text jumps and gets
+      // stuck" reported at high font scales.
+      const writeVerses = (verses) => {
+        m.textContent = ''; // clear previous probe
+        const wrapper = document.createElement('div');
+        wrapper.className = 'slideshow__ar-block';
+        for (const verse of verses) {
+          const p = document.createElement('p');
+          p.textContent = verse;
+          wrapper.appendChild(p);
+        }
+        m.appendChild(wrapper);
+      };
+      // 8 px safety margin — guards against sub-pixel rounding between
+      // measurer scrollHeight and the visible body's actual rendered
+      // height (Chromium rounds box geometry differently at fractional
+      // CSS pixels under some DPRs). Better to flush one verse early
+      // than to clip the last visible line.
+      const containerH = m.clientHeight - 8;
       if (containerH <= 0) {
         setPaginatedSlides(repaginate(state.slides, fontScale));
         return;
@@ -238,28 +280,58 @@ export default function SlideshowOverlay({ state }) {
           continue;
         }
         const verses = String(slide.ar).split('\n').map((l) => l.trim()).filter(Boolean);
+        // Pass 1: greedy fit per slide — packs as many verses as the
+        // measurer allows per page.
+        const pages = [];
         let page = [];
         for (const verse of verses) {
-          const candidate = [...page, verse].join('\n');
-          m.textContent = candidate;
+          writeVerses([...page, verse]);
           if (m.scrollHeight > containerH && page.length > 0) {
-            // This verse would overflow — flush current page and
-            // start a new page with this verse alone.
-            out.push({ ...slide, baseIdx, ar: page.join('\n') });
+            pages.push(page);
             page = [verse];
           } else {
             page.push(verse);
           }
         }
-        if (page.length > 0) {
-          out.push({ ...slide, baseIdx, ar: page.join('\n') });
+        if (page.length > 0) pages.push(page);
+
+        // Pass 2: pull-back rebalance — operator 2026-05-25 asked for
+        // pages with similar text density. Greedy maximizes each page,
+        // leaving the LAST page short on slides where total verses
+        // aren't a tidy multiple of capacity (e.g., 4 verses split
+        // 3/1 instead of 2/2). For each adjacent pair where the
+        // successor is < 50 % of the slide's mean page length, try
+        // moving the last verse of the predecessor onto the front of
+        // the successor — commit only if the successor still fits.
+        // Skips when the move would overflow; never increases page
+        // count, never reorders verses, so navigation indices stay
+        // stable.
+        if (pages.length >= 2) {
+          const charCount = (p) => p.join('\n').length;
+          const mean = pages.reduce((s, p) => s + charCount(p), 0) / pages.length;
+          for (let i = pages.length - 1; i >= 1; i--) {
+            const successor = pages[i];
+            const predecessor = pages[i - 1];
+            if (charCount(successor) >= mean * 0.5) continue;
+            if (predecessor.length < 2) continue;
+            const candidateVerse = predecessor[predecessor.length - 1];
+            const candidateSuccessor = [candidateVerse, ...successor];
+            writeVerses(candidateSuccessor);
+            if (m.scrollHeight > containerH) continue; // would overflow → leave alone
+            pages[i] = candidateSuccessor;
+            pages[i - 1] = predecessor.slice(0, -1);
+          }
+        }
+
+        for (const p of pages) {
+          out.push({ ...slide, baseIdx, ar: p.join('\n') });
         }
       }
-      m.textContent = ''; // release text nodes
+      m.textContent = ''; // release nodes
       if (!cancelled) setPaginatedSlides(out);
     });
     return () => { cancelled = true; cancelAnimationFrame(raf); };
-  }, [state?.active, state?.slides, fontScale]);
+  }, [state?.active, state?.slides, fontScale, viewportTick]);
   // Aliased for the rest of the component which still uses `effectiveSlides`.
   const effectiveSlides = paginatedSlides;
   // Find the first paginated index whose baseIdx matches the
@@ -463,9 +535,10 @@ export default function SlideshowOverlay({ state }) {
           </div>
           {/* Hidden measurer — structurally identical to body-inner
               so scrollHeight reads the true render height at the
-              current font + max-width. Used by the pagination
-              effect above to pack verses without overflow. The
-              `pre-wrap` white-space preserves the \n we feed it. */}
+              current font + max-width. The pagination effect above
+              populates it with a real `.slideshow__ar-block` wrapper
+              + <p> children mirroring the visible markup, so the
+              measured height includes the 0.25em paragraph margins. */}
           <div
             ref={measurerRef}
             className="slideshow__body-inner"
@@ -474,7 +547,6 @@ export default function SlideshowOverlay({ state }) {
               position: 'absolute', inset: 0,
               visibility: 'hidden', pointerEvents: 'none',
               overflow: 'visible',
-              whiteSpace: 'pre-wrap',
               contain: 'content',
             }}
           />

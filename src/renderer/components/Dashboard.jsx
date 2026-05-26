@@ -94,8 +94,17 @@ function useHijri() {
       }
     }
     load();
+    // Subscribe to config-changed so a Settings change to `calendar` or
+    // `calendarDayOffset` reflects immediately on the wall — previously
+    // these only refreshed on the 1-hour poll, which made the +/- date
+    // adjustment feel broken.
+    const off = onConfigChanged(() => load());
     const id = setInterval(load, 60 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      if (typeof off === 'function') off();
+    };
   }, []);
   return h;
 }
@@ -401,32 +410,38 @@ export default function Dashboard() {
       <div className="dashboard__frame" aria-hidden="true" />
       <div className="dashboard__frame dashboard__frame--inner" aria-hidden="true" />
 
-      <div className="dashboard__corner dashboard__corner--tr"><ArabesqueCorner size={78} opacity={0.55} rotate={0} /></div>
+      {/* Top-right corner is replaced by the mosque logo (when set) — the
+          two would collide visually at the same inset. When no logo is
+          uploaded the arabesque ornament keeps the corner balanced. */}
+      {!logoSrc && (
+        <div className="dashboard__corner dashboard__corner--tr"><ArabesqueCorner size={78} opacity={0.55} rotate={0} /></div>
+      )}
       <div className="dashboard__corner dashboard__corner--tl"><ArabesqueCorner size={78} opacity={0.55} rotate={90} /></div>
       <div className="dashboard__corner dashboard__corner--br"><ArabesqueCorner size={78} opacity={0.55} rotate={270} /></div>
       <div className="dashboard__corner dashboard__corner--bl"><ArabesqueCorner size={78} opacity={0.55} rotate={180} /></div>
 
+      {/* Mosque logo — operator request 2026-05-25: pin to top-right
+          (RTL trailing edge), not in the middle of the masthead. The
+          masthead falls back to its text-only 2-star layout below. */}
+      {logoSrc && (
+        <img
+          src={logoSrc}
+          alt="شعار المسجد"
+          className="dashboard__mosque-logo"
+        />
+      )}
+
       <div className="dashboard__grid">
         {/* ZONE 1 — header */}
         <header className="dashboard__header">
-          <div className={`masthead ${logoSrc ? 'masthead--with-logo' : ''}`}>
+          <div className="masthead">
             <span className="masthead__rule masthead__rule--start" />
-            {/* Logo renders on the leading (RTL-right) side of the
-                title. A mirrored duplicate on the trailing side would
-                look wrong for asymmetric logos (figural crests,
-                calligraphic marks), so we only emit one logo and
-                keep the ImamiStar on the trailing edge for visual
-                balance. Text-only headers keep two stars for the
-                classic symmetric composition. */}
-            {logoSrc ? (
-              <img
-                src={logoSrc}
-                alt="شعار المسجد"
-                className="masthead__logo"
-              />
-            ) : (
-              <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
-            )}
+            {/* Logo lives at the top-right corner of the dashboard (see
+                <img className="dashboard__mosque-logo"> above), not
+                inside the centered masthead row — operator request
+                2026-05-25. Masthead keeps its classic 2-star symmetric
+                composition either way. */}
+            <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
             <h1 className="masthead__title">{mosqueName}</h1>
             <span className="masthead__star"><ImamiStar size={16} opacity={0.7} /></span>
             <span className="masthead__rule masthead__rule--end" />

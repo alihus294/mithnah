@@ -244,6 +244,29 @@ input, textarea, [contenteditable="true"] {
 html[data-large-text="true"] .masthead__logo {
   height: clamp(56px, 4.6vw, 84px);
 }
+
+/* Mosque logo pinned to the top-right (RTL trailing edge) of the
+ * dashboard frame — replaces the masthead-inline placement that the
+ * operator (2026-05-25) flagged as "in the middle". Z-index sits
+ * above the dashboard background and corner ornaments. The top-right
+ * arabesque ornament is suppressed when this logo is shown so the
+ * two don't collide at the same inset.
+ * Width capped so an oversized PNG can't crowd the masthead title. */
+.dashboard__mosque-logo {
+  position: absolute;
+  top: clamp(18px, 2vh, 36px);
+  inset-inline-end: clamp(22px, 2.4vw, 52px);
+  height: clamp(64px, 6vw, 110px);
+  width: auto;
+  max-width: clamp(80px, 8vw, 160px);
+  object-fit: contain;
+  z-index: 4;
+  pointer-events: none;
+}
+html[data-large-text="true"] .dashboard__mosque-logo {
+  height: clamp(80px, 7vw, 130px);
+  max-width: clamp(96px, 9vw, 180px);
+}
 .masthead__title {
   font-family: var(--m-font-display);
   /* Ceilings bumped 2026-04-24 wasted-space pass: 36 px was lost in
@@ -746,14 +769,16 @@ html[data-large-text="true"] .masthead__logo {
    * overflow. Operator-controlled scale layered on top via the CSS
    * variable still works (0.7×–1.8×). At scale 1.0 on a 1080p screen
    * the body renders ~96px — roughly double what a pocket Quran uses. */
-  /* Base size bumped to clamp(52–120px). `--slideshow-font-scale` is
-   * the caretaker's explicit zoom (Ctrl +/-). 2026-04-24 rewrite:
-   * transform:scale fit-shrink removed — it was capping the zoom
-   * visually, which the operator explicitly rejected. The new
-   * approach paginates to MORE pages instead of scaling the font
-   * down (see repaginate() in SlideshowOverlay.jsx). Font always
-   * renders at the caretaker's chosen size. */
-  font-size: calc(clamp(52px, min(5.3vw, 9vh), 120px) * var(--slideshow-font-scale, 1));
+  /* Base size bumped to clamp(64–140px) — operator request 2026-05-25:
+   * elderly readers complained the 52px floor was too small at
+   * default scale even on a 1080p wall. The new floor is roughly
+   * +23% across small/medium screens; the ceiling moves from 120px
+   * to 140px so 4K walls also gain. `--slideshow-font-scale` is
+   * still the caretaker's explicit zoom (Ctrl +/- in the overlay).
+   * The DOM-measured re-pagination in SlideshowOverlay.jsx absorbs
+   * the size change automatically — bigger font → more pages, not
+   * shrunken text. */
+  font-size: calc(clamp(64px, min(5.8vw, 9.5vh), 140px) * var(--slideshow-font-scale, 1));
   word-break: break-word;
   overflow-wrap: break-word;
   hyphens: auto;
@@ -1759,6 +1784,34 @@ html[data-large-text="true"] .masthead__logo {
   color: var(--m-text-muted);
   letter-spacing: 0.03em;
 }
+/* Meta row at the bottom of each card — holds the page-count chip
+ * and the source line side-by-side. Wraps on narrow cards so neither
+ * truncates. Margin-top auto keeps the row pinned to the bottom of
+ * the flex card even when subtitle/source are short. */
+.dua-picker__item-meta {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px 14px;
+  margin-top: auto;
+}
+/* On custom cards, edit + delete buttons live at bottom-right (RTL)
+ * occupying ~100 px on the inline-end side. Clear that band on the
+ * meta row so a long source like "مضاف من القائم — مفاتيح الجنان"
+ * doesn't slide under the buttons. delete=12+40, edit=60+40 → 112. */
+.dua-picker__item--custom .dua-picker__item-meta {
+  padding-inline-end: 112px;
+}
+.dua-picker__item-pages {
+  display: inline-flex; align-items: center;
+  padding: 3px 12px;
+  background: rgba(226, 183, 106, 0.14);
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: var(--m-radius-full);
+  color: var(--m-accent-bright);
+  font-family: var(--m-font-display);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .dua-picker__empty {
   text-align: center;
   padding: 60px 20px;
@@ -1830,6 +1883,37 @@ html[data-large-text="true"] .masthead__logo {
   background: rgba(0, 0, 0, 0.25);
   color: var(--m-text-primary);
 }
+/* Favorites-only filter banner (shown when the FloatingMenu "⭐
+ * المفضّلة" shortcut opens the picker). Same shape as the welcome
+ * strip but uses the gold accent and offers an "إظهار الكل" exit
+ * button instead of a small × — the exit is the primary affordance
+ * here, so it needs an actual label not just a glyph. */
+.dua-picker__favorites-banner {
+  display: flex; align-items: center; gap: var(--m-space-md);
+  margin-bottom: var(--m-space-md);
+  padding: var(--m-space-md) var(--m-space-lg);
+  background: rgba(226, 183, 106, 0.10);
+  border: 1px solid var(--m-hairline-bright);
+  border-radius: var(--m-radius-md);
+  color: var(--m-text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.dua-picker__favorites-banner strong { color: var(--m-accent-bright); }
+.dua-picker__favorites-banner-exit {
+  flex: 0 0 auto;
+  padding: 8px 18px;
+  min-height: 40px;
+  border-radius: var(--m-radius-full);
+  background: rgba(226, 183, 106, 0.18);
+  border: 1px solid var(--m-hairline-bright);
+  color: var(--m-accent-bright);
+  font-family: var(--m-font-display);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background var(--m-motion-fast) ease;
+}
+.dua-picker__favorites-banner-exit:hover { background: rgba(226, 183, 106, 0.30); }
 
 /* Dua picker: search + add-dua row */
 .dua-picker__searchbar {
@@ -1916,6 +2000,14 @@ html[data-large-text="true"] .masthead__logo {
   font-weight: 600;
   letter-spacing: 0.06em;
 }
+/* Edit + delete sit side-by-side on the OPPOSITE corner from the star
+ * — star is at top-start (RTL: top-right), so we anchor the action
+ * pair at bottom-end (RTL: bottom-left). On short cards the previous
+ * stacked layout (edit at bottom-start +60, delete at bottom-start)
+ * overlapped the star vertically because min-height 130 left ~30 px
+ * between the star's bottom (y=56) and the raised edit (y=30).
+ * Horizontal layout removes that collision entirely regardless of
+ * card height. */
 .dua-picker__edit,
 .dua-picker__delete {
   position: absolute;
@@ -1930,8 +2022,8 @@ html[data-large-text="true"] .masthead__logo {
   font-size: 18px;
   transition: background var(--m-motion-fast) ease, color var(--m-motion-fast) ease;
 }
-.dua-picker__edit { inset-inline-start: 12px; bottom: 60px; }
-.dua-picker__delete { inset-inline-start: 12px; }
+.dua-picker__delete { inset-inline-end: 12px; }
+.dua-picker__edit   { inset-inline-end: 60px; }
 .dua-picker__edit:hover   { background: rgba(226, 183, 106, 0.16); color: var(--m-accent-bright); }
 .dua-picker__delete:hover { background: rgba(240, 128, 96, 0.16); color: #ffb3a6; }
 
@@ -2619,6 +2711,63 @@ html[data-large-text="true"] .masthead__logo {
   min-width: 120px;
   width: auto;
   min-height: 44px;
+}
+/* +/- stepper for per-prayer minute adjustments. Replaces the old
+ * sparse-value dropdown so any integer in [-30, +30] is reachable —
+ * operator-reported pain: "الأرقام الفردية فقط" because the dropdown
+ * skipped 2/4/6/7/8/9/11–14. */
+.settings__adjust-stepper {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--m-bg-base);
+  border: 1px solid var(--m-hairline);
+  border-radius: 8px;
+  padding: 4px;
+  min-height: 48px;
+}
+.settings__adjust-btn {
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--m-hairline-faint);
+  border-radius: 6px;
+  color: var(--m-accent-bright);
+  font-size: 22px; font-weight: 700; line-height: 1;
+  cursor: pointer;
+  transition: background var(--m-motion-fast) ease, transform var(--m-motion-fast) ease;
+}
+.settings__adjust-btn:hover:not(:disabled) {
+  background: rgba(226, 183, 106, 0.14);
+  transform: scale(1.05);
+}
+.settings__adjust-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.settings__adjust-input {
+  width: 60px;
+  text-align: center;
+  background: transparent;
+  border: none;
+  color: var(--m-text-primary);
+  font-family: var(--m-font-display);
+  font-size: 19px;
+  font-weight: 600;
+  padding: 0;
+  -moz-appearance: textfield;
+}
+.settings__adjust-input::-webkit-outer-spin-button,
+.settings__adjust-input::-webkit-inner-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+.settings__adjust-input:focus {
+  outline: 2px solid var(--m-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.settings__adjust-unit {
+  font-family: var(--m-font-body);
+  font-size: 15px;
+  color: var(--m-text-muted);
 }
 
 /* Feature toggles (F3 Features section) — one row per feature with the
@@ -3536,10 +3685,14 @@ html[data-large-text="true"] .dua-picker__add-btn { font-size: 19px; min-height:
 html[data-large-text="true"] .dua-picker__secondary-btn { font-size: 18px; min-height: 56px; }
 html[data-large-text="true"] .dua-picker__welcome { font-size: 17px; line-height: 1.7; }
 html[data-large-text="true"] .dua-picker__item-badge { font-size: 15px; padding: 6px 16px; }
+html[data-large-text="true"] .dua-picker__item-pages { font-size: 16px; padding: 5px 16px; }
 html[data-large-text="true"] .dua-picker__star { width: 48px; height: 48px; font-size: 26px; }
 html[data-large-text="true"] .dua-picker__edit,
 html[data-large-text="true"] .dua-picker__delete { width: 44px; height: 44px; font-size: 20px; }
-html[data-large-text="true"] .dua-picker__edit { bottom: 64px; }
+/* Wider edit button needs a wider horizontal offset so the two icons
+ * still sit side-by-side without overlapping (delete at end:12,
+ * edit one button-width + gap to its inside). */
+html[data-large-text="true"] .dua-picker__edit { inset-inline-end: 64px; }
 html[data-large-text="true"] .dua-picker__empty { font-size: 20px; }
 
 /* Settings — search results, summary, update section, connect (QR) panel */
