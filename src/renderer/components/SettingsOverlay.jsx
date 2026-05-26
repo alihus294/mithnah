@@ -42,7 +42,7 @@ const CITIES = [
 ];
 
 const MAGHRIB_DELAY_OPTIONS = [0, 5, 10, 15, 20, 25, 30, 45, 60];
-const DAY_OFFSETS = [-2, -1, 0, 1, 2];
+const DAY_OFFSETS = [-3, -2, -1, 0, 1, 2, 3];
 const OCCASION_OPTIONS = [
   { id: 'auto',     label: 'تلقائي (من مناسبة اليوم)' },
   { id: 'normal',   label: 'عادي (ذهب نحاسي)' },
@@ -107,10 +107,14 @@ const FEATURE_GROUPS = [
 // toggle?" lookup.
 const FEATURE_TOGGLES = FEATURE_GROUPS.flatMap((g) => g.items);
 
-// Per-prayer minute adjustment. Range chosen to cover all plausible
-// operator needs (iqama delay, local cloud-cover calibration) without
-// letting them set a 4-hour offset by accident.
-const ADJ_OPTIONS = [-15, -10, -5, -3, -1, 0, 1, 3, 5, 10, 15];
+// Per-prayer minute adjustment. Range covers all plausible operator
+// needs (iqama delay, local cloud-cover calibration) without letting
+// them set a 4-hour offset by accident. The UI is a +/- stepper around
+// the number so any integer in [ADJ_MIN, ADJ_MAX] is reachable — the
+// previous dropdown only listed sparse values like -15/-10/-5/-3/-1/0
+// which made even numbers like 2 or 4 unreachable.
+const ADJ_MIN = -30;
+const ADJ_MAX = 30;
 const PRAYER_KEYS = [
   { key: 'fajr',    label: 'الفجر' },
   { key: 'sunrise', label: 'الشروق' },
@@ -729,15 +733,25 @@ export default function SettingsOverlay() {
     // Step 2 — we DO NOT auto-apply a timezone fallback. Timezone
     // detection for Saudi Arabia returns Riyadh for every Saudi city,
     // which dropped the Ahsa operator 400 km off. Instead we tell the
-    // operator to pick their city from the search box above; the
-    // timezone hint can seed that box but the operator confirms.
-    setMsg('تعذّر GPS — يرجى كتابة اسم مدينتك في مربع البحث أعلاه');
+    // operator that the desktop has no GPS chip and route them to the
+    // phone handoff (which IS accurate — phone GPS, sent through
+    // POST /api/location/set). Also seed the search box from timezone
+    // so they have a starting point if they prefer to type the city.
+    setMsg('هذا الجهاز عادةً ليس عنده GPS. استخدم زر «إقران الجوال» في القائمة لإرسال موقع جوّالك — أو اكتب اسم مدينتك في مربع البحث أعلاه.');
     setMsgKind('err');
     try {
       const tz = await detectLocationFromTimezone();
       if (tz?.name) setSearchQ(tz.name); // seed the search box only
     } catch (_) {}
     if (openRef.current) setSaving(false);
+  };
+
+  const onUsePhoneForGps = () => {
+    // Dispatch the same event the FloatingMenu's "إقران الجوال" item
+    // fires, so the phone-pairing modal handles the actual QR/PIN flow
+    // without duplicated wiring. Closes the Settings overlay so the
+    // pairing UI sits on top.
+    try { window.dispatchEvent(new CustomEvent('mithnah:request-pairing')); } catch (_) {}
   };
 
   const onCustomCoords = () => {
@@ -1150,23 +1164,53 @@ export default function SettingsOverlay() {
                 still honoured by prayer-times/index.js on load but
                 no longer editable from the UI. */}
 
-            <Field label="تعديل أوقات الصلاة (بالدقيقة)" hint="ضبط يدوي يُضاف إلى حساب المكتبة — للتعويض عن عوامل محلية كالسحب أو جدول الإقامة">
+            <Field label="تعديل أوقات الصلاة (بالدقيقة)" hint="ضبط يدوي يُضاف إلى حساب المكتبة — للتعويض عن عوامل محلية كالسحب أو جدول الإقامة. ± لتعديل دقيقة دقيقة، أو اكتب الرقم مباشرة.">
               <div className="settings__adjust-grid">
                 {PRAYER_KEYS.map((p) => {
                   const cur = (config.adjustmentsMinutes || {})[p.key] || 0;
+                  const clamp = (v) => Math.max(ADJ_MIN, Math.min(ADJ_MAX, v));
+                  const bump = (delta) => onAdjustment(p.key, clamp(cur + delta));
                   return (
-                    <label key={p.key} className="settings__adjust-row">
+                    <div key={p.key} className="settings__adjust-row">
                       <span className="settings__adjust-label">{p.label}</span>
-                      <select
-                        className="settings__select settings__adjust-select"
-                        value={cur}
-                        onChange={(e) => onAdjustment(p.key, e.target.value)}
-                      >
-                        {ADJ_OPTIONS.map((v) => (
-                          <option key={v} value={v}>{v > 0 ? `+${toArabicDigits(v)}` : v === 0 ? toArabicDigits(0) : toArabicDigits(v)} د</option>
-                        ))}
-                      </select>
-                    </label>
+                      <div className="settings__adjust-stepper">
+                        <button
+                          type="button"
+                          className="settings__adjust-btn"
+                          onClick={() => bump(-1)}
+                          disabled={cur <= ADJ_MIN}
+                          aria-label={`نقص دقيقة من ${p.label}`}
+                          title="نقص دقيقة"
+                        >−</button>
+                        <input
+                          type="number"
+                          className="settings__adjust-input"
+                          inputMode="numeric"
+                          value={cur}
+                          min={ADJ_MIN}
+                          max={ADJ_MAX}
+                          step={1}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            // Allow empty/typing in progress — commit only when the
+                            // value parses to a finite integer.
+                            const n = Number(raw);
+                            if (raw === '' || !Number.isFinite(n)) return;
+                            onAdjustment(p.key, clamp(Math.round(n)));
+                          }}
+                          aria-label={`تعديل ${p.label} بالدقائق`}
+                        />
+                        <span className="settings__adjust-unit">د</span>
+                        <button
+                          type="button"
+                          className="settings__adjust-btn"
+                          onClick={() => bump(+1)}
+                          disabled={cur >= ADJ_MAX}
+                          aria-label={`زيادة دقيقة على ${p.label}`}
+                          title="زيادة دقيقة"
+                        >+</button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
@@ -1218,6 +1262,13 @@ export default function SettingsOverlay() {
             <div className="settings__location-row">
               <button className="settings__btn" type="button" onClick={onDetectGps} disabled={saving}>
                 تحديد الموقع بـ GPS
+              </button>
+              {/* Desktop GPS rarely works in offline mode (no GPS chip,
+                  Google WiFi-positioning blocked) — the phone handoff
+                  is the reliable path. Surface it as a peer action so
+                  the operator doesn't have to hunt the FloatingMenu. */}
+              <button className="settings__btn" type="button" onClick={onUsePhoneForGps}>
+                📱 استخدام جوّال للموقع
               </button>
               <button className="settings__btn" type="button" onClick={onFindNearby} disabled={nearbyLoading}>
                 {nearbyLoading ? 'جاري البحث...' : 'أقرب الأماكن (مدن/قرى/هجر/أحياء)'}

@@ -25,6 +25,10 @@ import { useIdleVisibility } from '../lib/useIdleVisibility.js';
 const ITEMS = [
   { key: 'F3',  label: 'الإعدادات',    icon: '⚙',  emit: 'F3', primary: true },
   { key: 'F4',  label: 'مكتبة الأدعية', icon: '❋',  emit: 'F4' },
+  // Operator request: a one-click jump straight into the favorites
+  // filter. The picker listens for this custom event and opens with
+  // favoritesMode on so they skip the scroll/search step entirely.
+  { key: 'FV',  label: 'الأدعية المفضّلة', icon: '⭐', emit: 'mithnah:request-favorites', kind: 'event', shortcut: '' },
   { key: 'F5',  label: 'متابعة الصلاة', icon: '☪',  emit: 'F5' },
   { key: 'PA',  label: 'إقران الجوال',  icon: '✆',  emit: 'mithnah:request-pairing', kind: 'event', shortcut: '' },
   { key: 'F1',  label: 'المساعدة',     icon: '?',  emit: 'F1' },
