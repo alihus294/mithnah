@@ -3543,7 +3543,7 @@ html[data-large-text="true"] .pairing-modal__step-warn { font-size: 16px; }
   background: rgba(226, 183, 106, 0.12);
 }
 .imam-list-editor__remove {
-  width: 32px; height: 32px;
+  width: 48px; height: 48px;
   padding: 0;
   border: 1px solid var(--m-hairline-faint);
   background: transparent;
@@ -3719,7 +3719,7 @@ html[data-large-text="true"] .prayer-tracker__help { font-size: 17px; }
 /* ImamListEditor (in F3) */
 html[data-large-text="true"] .imam-list-editor__name { font-size: 19px; }
 html[data-large-text="true"] .imam-list-editor__badge { font-size: 14px; padding: 4px 12px; }
-html[data-large-text="true"] .imam-list-editor__remove { width: 40px; height: 40px; font-size: 18px; }
+html[data-large-text="true"] .imam-list-editor__remove { width: 56px; height: 56px; font-size: 22px; }
 
 /* Inline modal — extends the existing title/btn rules */
 html[data-large-text="true"] .inline-modal__subtitle { font-size: 17px; line-height: 1.65; }
