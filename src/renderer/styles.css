@@ -3980,6 +3980,15 @@ html[data-large-text="true"] .floating-menu__item-icon { font-size: 32px; min-wi
   font-weight: 600;
 }
 .inline-modal__btn--primary:hover { background: var(--m-accent-bright); }
+/* Destructive variant — muted red so a click on the eye-catching button
+ * is the SAFE action, not the irreversible one. Used by the kiosk-quit
+ * modal (Dashboard) and the custom-dua delete modal (DuaPicker). */
+.inline-modal__btn--danger {
+  background: rgba(178, 86, 86, 0.14);
+  border-color: rgba(178, 86, 86, 0.50);
+  color: #ffb3a6;
+}
+.inline-modal__btn--danger:hover { background: rgba(178, 86, 86, 0.24); }
 
 /* First-run onboarding overlay — high z-index so it covers the
  * dashboard during setup. Same visual family as help/settings

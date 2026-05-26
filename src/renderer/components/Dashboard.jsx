@@ -561,12 +561,12 @@ export default function Dashboard() {
                 <div className="inline-modal__buttons">
                   <button
                     type="button"
-                    className="inline-modal__btn inline-modal__btn--primary"
+                    className="inline-modal__btn inline-modal__btn--danger"
                     onClick={() => submitKioskQuit('')}
                   >نعم، إيقاف</button>
                   <button
                     type="button"
-                    className="inline-modal__btn"
+                    className="inline-modal__btn inline-modal__btn--primary"
                     onClick={() => setUnlock(null)}
                     autoFocus
                   >إلغاء</button>
