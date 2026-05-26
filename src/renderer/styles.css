@@ -2718,7 +2718,7 @@ html[data-large-text="true"] .dashboard__mosque-logo {
   min-height: 48px;
 }
 .settings__adjust-btn {
-  width: 40px; height: 40px;
+  width: 48px; height: 48px;
   display: flex; align-items: center; justify-content: center;
   background: transparent;
   border: 1px solid var(--m-hairline-faint);
@@ -3720,6 +3720,11 @@ html[data-large-text="true"] .prayer-tracker__help { font-size: 17px; }
 html[data-large-text="true"] .imam-list-editor__name { font-size: 19px; }
 html[data-large-text="true"] .imam-list-editor__badge { font-size: 14px; padding: 4px 12px; }
 html[data-large-text="true"] .imam-list-editor__remove { width: 56px; height: 56px; font-size: 22px; }
+
+/* Per-prayer minute adjust stepper (in F3 → الصلاة). 12 buttons per
+ * screen ×2 directions → high cumulative mis-tap risk for trembling
+ * hands; bumped well past WCAG 44 in largeText. */
+html[data-large-text="true"] .settings__adjust-btn { width: 56px; height: 56px; font-size: 26px; }
 
 /* Inline modal — extends the existing title/btn rules */
 html[data-large-text="true"] .inline-modal__subtitle { font-size: 17px; line-height: 1.65; }
