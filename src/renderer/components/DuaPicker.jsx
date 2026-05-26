@@ -181,6 +181,11 @@ export default function DuaPicker() {
   // Editing state for the custom-dua form. null = closed;
   // { id, title, body } = editing (or creating if id is a new UUID).
   const [editor, setEditor] = useState(null);
+  // Delete-confirmation modal state. window.confirm returns null
+  // silently inside packaged Electron kiosk windows (no native dialog
+  // attaches), so the 🗑 button looked broken in production. Replaced
+  // with an in-renderer modal — null = closed; { id, title } = open.
+  const [confirmDelete, setConfirmDelete] = useState(null);
   // Favorites-only filter. Activated by the FloatingMenu "⭐ المفضّلة"
   // shortcut so the caretaker reaches their starred items in one click
   // instead of opening F4 → scrolling → finding the favorites strip.
@@ -698,7 +703,7 @@ export default function DuaPicker() {
                         className="dua-picker__delete"
                         aria-label="حذف الدعاء"
                         title="حذف"
-                        onClick={(e) => { e.stopPropagation(); if (window.confirm('حذف هذا الدعاء؟')) deleteCustomDua(item.id); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: item.id, title: item.title_ar }); }}
                       >🗑</button>
                     </>
                   )}
@@ -750,6 +755,50 @@ export default function DuaPicker() {
         />
       )}
 
+      {/* Delete-confirmation modal — replaces window.confirm so it
+          actually shows up inside packaged Electron. autoFocus on the
+          safe action so a stray Enter cancels instead of deletes. */}
+      {confirmDelete && (
+        <ConfirmDeleteDua
+          singular={{ duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر'}
+          title={confirmDelete.title}
+          onCancel={() => setConfirmDelete(null)}
+          onConfirm={() => { deleteCustomDua(confirmDelete.id); setConfirmDelete(null); }}
+        />
+      )}
+
+    </div>
+  );
+}
+
+// -------- ConfirmDeleteDua --------
+// Inline replacement for window.confirm (which returns null silently
+// in packaged Electron kiosk windows). Mirrors the visual shape of
+// CustomDuaEditor below so both feel native to the picker.
+function ConfirmDeleteDua({ singular, title, onCancel, onConfirm }) {
+  const onKeyDown = (e) => { if (e.key === 'Escape') onCancel(); };
+  return (
+    <div className="inline-modal" role="dialog" aria-modal="true" dir="rtl" onKeyDown={onKeyDown}>
+      <div className="inline-modal__bg" onClick={onCancel} />
+      <div className="inline-modal__card">
+        <div className="inline-modal__title">{`حذف ${singular}`}</div>
+        <div className="inline-modal__subtitle">
+          سيُحذف <strong>{title || 'هذا العنصر'}</strong> نهائياً من هذا الجهاز.
+        </div>
+        <div className="inline-modal__buttons">
+          <button
+            type="button"
+            className="inline-modal__btn inline-modal__btn--danger"
+            onClick={onConfirm}
+          >نعم، احذف</button>
+          <button
+            type="button"
+            className="inline-modal__btn inline-modal__btn--primary"
+            onClick={onCancel}
+            autoFocus
+          >إلغاء</button>
+        </div>
+      </div>
     </div>
   );
 }
