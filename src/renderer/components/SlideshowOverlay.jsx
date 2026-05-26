@@ -503,7 +503,7 @@ export default function SlideshowOverlay({ state }) {
           {deck.subtitle && (
             <div className="slideshow__deck-subtitle">
               {deck.subtitle}
-              {subtitleHonorific && <AlayhiSalam size={10} />}
+              {subtitleHonorific && <AlayhiSalam size={14} />}
             </div>
           )}
           {slide?.heading && (

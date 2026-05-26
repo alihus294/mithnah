@@ -213,7 +213,7 @@ function EventStrip({ event, upcoming }) {
         <span className="event-strip__kind">{kind}</span>
         <span className="event-strip__sep" />
         <span className="event-strip__title">
-          <HonorifiedTitle title={title} honorific={honorific} starSize={11} />
+          <HonorifiedTitle title={title} honorific={honorific} starSize={14} />
         </span>
       </div>
     );
@@ -239,7 +239,7 @@ function EventStrip({ event, upcoming }) {
         </div>
         <div className="event-strip__content">
           <div className="event-strip__title">
-            <HonorifiedTitle title={title} honorific={honorific} starSize={9} />
+            <HonorifiedTitle title={title} honorific={honorific} starSize={12} />
           </div>
           <div className="event-strip__meta">
             {toArabicDigits(hijriDay)} {month}
