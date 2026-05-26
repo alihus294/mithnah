@@ -3,6 +3,9 @@
   "productName": "Mithnah",
   "version": "0.1.6",
   "private": true,
+  "engines": {
+    "node": ">=20.10.0 <23"
+  },
   "description": "Mithnah — a free, open-source mosque display for Shia Ithna Ashari (Twelver) communities. Offline-first, local prayer-time calculation with Jafari method, multi-variant Hijri calendar, global location support, GPS handoff from phone, presenter-style slideshow for verified Shia duas and ziyarat, and a pluggable auto-update channel.",
   "author": "Ali Hussin",
   "license": "MIT",
