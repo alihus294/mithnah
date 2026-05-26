@@ -1865,7 +1865,7 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .dua-picker__welcome strong { color: var(--m-accent-bright); }
 .dua-picker__welcome-close {
   flex: 0 0 auto;
-  width: 36px; height: 36px;
+  width: 44px; height: 44px;
   border-radius: var(--m-radius-full);
   background: transparent;
   border: 1px solid var(--m-hairline-faint);
