@@ -493,7 +493,7 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 }
 .event-strip__countdown-kind {
   font-family: var(--m-font-body);
-  font-size: clamp(10px, 0.85vw, 13px);
+  font-size: clamp(16px, 1.2vw, 22px);
   color: var(--m-accent);
 }
 .event-strip__countdown-when {
