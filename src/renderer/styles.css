@@ -387,7 +387,6 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .next__label {
   font-family: var(--m-font-body);
   font-size: clamp(14px, 1.1vw, 22px);
-  letter-spacing: 0.18em; text-transform: uppercase;
 }
 .next__pair {
   display: flex; align-items: baseline; gap: 28px;
@@ -496,8 +495,6 @@ html[data-large-text="true"] .dashboard__mosque-logo {
   font-family: var(--m-font-body);
   font-size: clamp(10px, 0.85vw, 13px);
   color: var(--m-accent);
-  letter-spacing: 0.20em;
-  text-transform: uppercase;
 }
 .event-strip__countdown-when {
   font-family: var(--m-font-display);
@@ -525,7 +522,6 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .event-strip__kind {
   font-size: 16px;
   color: var(--m-accent-bright);
-  letter-spacing: 0.20em; text-transform: uppercase;
 }
 .event-strip--upcoming .event-strip__kind {
   font-size: 14px;
@@ -708,7 +704,6 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .slideshow__section-marker-label {
   font-family: var(--m-font-body);
   font-size: clamp(12px, 0.95vw, 18px);
-  letter-spacing: 0.32em;
 }
 
 .slideshow__body {
@@ -2262,8 +2257,6 @@ html[data-large-text="true"] .dashboard__mosque-logo {
 .prayer-tracker__prayer-label {
   font-size: clamp(14px, 1.1vw, 18px);
   color: var(--m-accent);
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
   font-family: var(--m-font-body);
 }
 .prayer-tracker__prayer-name {
