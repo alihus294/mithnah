@@ -90,7 +90,7 @@ to handle symlinks during NSIS packaging:
 
 ## Architecture
 
-See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md). Short version:
+The codebase splits into four areas:
 
 - **Main process** — `src/main/`. Electron + Express (port 3100) +
   socket.io. Registers IPC channels for prayer times, Hijri, location,
