@@ -6,15 +6,12 @@ How to cut a release of Mithnah that auto-update clients will consume.
 
 1. **Create the GitHub repo.** Public. Name it `mithnah` (matching
    `build.publish.repo` in `package.json`).
-2. **Set the real GitHub username** in `package.json` →
-   `build.publish.owner`. Replace `REPLACE_ME_BEFORE_RELEASE` with your
-   actual username or organisation. Commit the change.
-3. **No code signing yet.** The first installation will show a
+2. **No code signing yet.** The first installation will show a
    SmartScreen warning until the app accumulates reputation (or a
    SignPath Foundation cert is granted — see
    `docs/SIGNPATH-APPLICATION.md`). `docs/FOR-MOSQUE-OPERATORS.md`
    already explains the "unknown publisher" dialog to caretakers.
-4. **GitHub Actions permissions.** In the repo Settings → Actions →
+3. **GitHub Actions permissions.** In the repo Settings → Actions →
    General → Workflow permissions, set **Read and write**. The release
    workflow needs this to create releases and upload assets.
 

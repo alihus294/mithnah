@@ -5,14 +5,6 @@ user value per unit of effort. No promises, no dates.
 
 ## Near-term (v0.2.x–v0.3.x, single-weekend projects)
 
-- [ ] **Evaluate firebase removal.** `firebase@10.14.1` ships in the renderer
-      bundle (transitive of the original UI). It accounts for most of the 22
-      npm-audit findings. If the mosque-display modes we care about don't
-      exercise it, pulling the firebase client out is a large security and
-      size win. Need to instrument the running app and confirm.
-- [ ] **Replace the placeholder `<PLACEHOLDER_USERNAME>` in
-      `package.json.build.publish.owner`** with a real GitHub owner once the
-      public repo exists. Flagged in `docs/RELEASE.md`.
 - [ ] **First real GitHub release (v0.1.0)** — follow `docs/RELEASE.md`, watch
       CI, install on a secondary machine, verify auto-update delivers the next
       version.
