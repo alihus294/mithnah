@@ -132,7 +132,7 @@ export function TileBand({ height = 24, opacity = 0.5 }) {
 }
 
 export function SalawatLine({ size = 'sm', className = '', style = {} }) {
-  const fontSize = size === 'lg' ? '1.6vw' : size === 'md' ? 22 : 14;
+  const fontSize = size === 'lg' ? '1.6vw' : size === 'md' ? 22 : 18;
   return (
     <div className={`salawat-line ${className}`} style={{
       fontFamily: 'var(--m-font-quranic)',
