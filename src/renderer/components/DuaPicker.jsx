@@ -39,6 +39,11 @@ const TAB_AR = {
   ziyarat: { singular: 'زيارة', definite: 'الزيارة', plural: 'الزيارات' },
   taqibat: { singular: 'تعقيب', definite: 'التعقيب', plural: 'التعقيبات' },
 };
+// The canonical iteration order for the three tabs — derived from
+// TAB_AR so a future tab addition automatically reaches every loop
+// that walks all tabs (notably importCustomDuas), instead of needing
+// each `for` literal to be updated by hand.
+const TAB_IDS = Object.keys(TAB_AR);
 // One-shot flag: shown as a welcome strip the FIRST time the library
 // opens. Dismissed automatically after the operator adds a dua or
 // clicks ×. Cleared from localStorage to show again requires manual
@@ -560,7 +565,7 @@ export default function DuaPicker() {
       const addedByTab    = {};
       const skippedByTab  = {};
       const nextByTab     = { ...customByTab };
-      for (const t of ['duas', 'ziyarat', 'taqibat']) {
+      for (const t of TAB_IDS) {
         const existing = new Set((customByTab[t] || []).map((d) => d.id));
         const added    = (incomingByTab[t] || []).filter((d) => !existing.has(d.id));
         const skipped  = (incomingByTab[t] || []).length - added.length;
@@ -571,7 +576,7 @@ export default function DuaPicker() {
       const finalByTab = { ...customByTab };
       const failedTabs = [];
       let savedAdded = 0, savedSkipped = 0;
-      for (const t of ['duas', 'ziyarat', 'taqibat']) {
+      for (const t of TAB_IDS) {
         try {
           saveCustomForTab(t, nextByTab[t]);
           finalByTab[t] = nextByTab[t];
@@ -590,11 +595,11 @@ export default function DuaPicker() {
       if (failedTabs.length === 0) {
         setMsg(`تمّت إضافة ${savedAdded} عنصراً${savedSkipped > 0 ? ` (تخطيت ${savedSkipped} موجود مسبقاً)` : ''}`);
       } else {
-        // Honest partial-success message — names the tabs that failed,
-        // reports the count actually saved. Avoids the prior misfire
-        // where savedAdded === 0 (e.g. an all-duplicates duas import
-        // that succeeded with zero new entries) misread as total
-        // failure even though one tab persisted cleanly.
+        // Partial failure: report the count actually saved and name
+        // the tabs that didn't. savedAdded === 0 is a legitimate
+        // outcome — an all-duplicates import on the succeeding tabs
+        // saves nothing new yet still persists cleanly — so it must
+        // not be treated as total failure.
         const failedLabels = failedTabs.map((t) => TAB_AR[t].plural).join(' و');
         setMsg(`تم استيراد ${savedAdded} عنصراً — تعذّر حفظ ${failedLabels}`);
       }
