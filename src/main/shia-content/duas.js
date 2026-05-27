@@ -24,6 +24,14 @@ const ORDER = [
   'abu-hamza',
   'arafah',
   'jawshan-saghir',
+  // أدعية الأيام السبعة (من مفاتيح الجنان)
+  'yawm-sabt',
+  'yawm-ahad',
+  'yawm-ithnayn',
+  'yawm-thulatha',
+  'yawm-arbiaa',
+  'yawm-khamis',
+  'yawm-jumua',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
