@@ -554,6 +554,19 @@ export default function DuaPicker() {
       const isValid = (d) => d && typeof d === 'object' &&
         typeof d.id === 'string' && d.id.startsWith('custom:') &&
         typeof d.title_ar === 'string' && typeof d.body === 'string';
+      // Schema validation — for every tab key the file is supposed
+      // to populate (v1: duas only; v2: all three), if the key is
+      // present it MUST be an array. A non-array present value means
+      // the file is malformed; surface that as an explicit failure
+      // rather than coercing to [] and reporting "تمّت إضافة 0"
+      // (which would silently mask hand-edited or corrupted exports).
+      for (const t of TAB_IDS) {
+        if (!isV2 && t !== 'duas') continue;
+        if (data[t] != null && !Array.isArray(data[t])) {
+          setMsg('الملف ليس تصديراً صالحاً');
+          return;
+        }
+      }
       // Derive incomingByTab from TAB_IDS so a new tab added to
       // TAB_AR participates in imports automatically. v1 exports
       // only ever carried `data.duas` (the format predates ziyarat
