@@ -54,6 +54,7 @@ const ORDER = [
   'munajat-13-zakirin',
   'munajat-14-mutasimin',
   'munajat-15-zahidin',
+  'munajat-kufa',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
