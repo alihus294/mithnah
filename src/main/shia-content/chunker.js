@@ -107,4 +107,4 @@ function chunkSlides(slides, opts = {}) {
   return out;
 }
 
-module.exports = { chunkSlides, DEFAULT_MAX_LINES, DEFAULT_MAX_CHARS };
+module.exports = { chunkSlides, DEFAULT_MAX_LINES, DEFAULT_MAX_CHARS, DEFAULT_WRAP_CHARS };

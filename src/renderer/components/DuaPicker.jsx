@@ -42,9 +42,18 @@ const CUSTOM_LIST_MAX = 100;
 const CUSTOM_BODY_MAX = 20000;
 const CUSTOM_BODY_WARN = CUSTOM_BODY_MAX - 2000;
 
-// Load / save the operator's custom entries for a given tab. Each
-// entry is { id, title_ar, source, body }. The id prefix `custom:`
-// makes them easy to distinguish from bundled content.
+// Load the operator's custom entries for a given tab. Each entry
+// is { id, title_ar, source, body }; the `custom:` id prefix makes
+// them easy to distinguish from bundled content.
+//
+// SIDE EFFECT: on a corrupt JSON payload this helper writes a
+// timestamped backup key (`<key>:backup:<Date.now()>`) and removes
+// the original — preserving the raw bytes for manual recovery
+// while letting the picker continue with an empty list. The
+// alternative (a silent return []) wiped operator data on the very
+// next save. The name stays `loadCustomForTab` because every call
+// site treats this as "give me the list"; the repair is best-effort
+// and never blocks loading.
 function loadCustomForTab(tab) {
   const key = CUSTOM_KEYS[tab];
   if (!key) return [];
@@ -119,7 +128,13 @@ function loadIdList(key) {
   } catch (_) { return []; }
 }
 function saveIdList(key, list) {
-  try { localStorage.setItem(key, JSON.stringify(list.slice(0, 50))); } catch (_) {}
+  try { localStorage.setItem(key, JSON.stringify(list.slice(0, 50))); }
+  catch (err) {
+    // Recents/favorites are convenience features (not load-bearing
+    // operator content), so surface in DevTools but don't toast on
+    // every click — the user would see noise without any data at risk.
+    console.error(`[dua-picker] saveIdList(${key}) failed: ${err && err.message}`);
+  }
 }
 
 // Module-level cache — Shia content is immutable at runtime, so once
@@ -433,17 +448,22 @@ export default function DuaPicker() {
     setMsg(`تم حفظ ${savedLabel}`);
     dismissWelcome();
   };
-  // Takes the tab the delete was initiated on (captured in the
-  // confirmDelete state) so a tab-switch between opening the modal
-  // and confirming cannot misroute the deletion to the wrong bucket.
+  // `fromTab` is REQUIRED — the tab the delete was initiated on,
+  // captured into confirmDelete state at click time. Falling back to
+  // the active `tab` would re-open the cross-tab misroute window
+  // the confirmDelete.tab field exists to close, so we bail loudly
+  // on an unset argument instead.
   const deleteCustomDua = (id, fromTab) => {
-    const targetTab = fromTab || tab;
-    const list = customByTab[targetTab] || [];
+    if (!fromTab) {
+      console.error('[dua-picker] deleteCustomDua called without fromTab');
+      return;
+    }
+    const list = customByTab[fromTab] || [];
     const next = list.filter((x) => x.id !== id);
-    try { saveCustomForTab(targetTab, next); }
+    try { saveCustomForTab(fromTab, next); }
     catch (err) { setMsg('تعذّر الحذف — ' + friendlyErrorTitle(err)); return; }
-    setCustomByTab({ ...customByTab, [targetTab]: next });
-    const deletedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[targetTab] || 'العنصر';
+    setCustomByTab({ ...customByTab, [fromTab]: next });
+    const deletedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[fromTab] || 'العنصر';
     setMsg(`تم حذف ${deletedLabel}`);
   };
 
@@ -519,19 +539,45 @@ export default function DuaPicker() {
         ziyarat: isV2 && Array.isArray(data.ziyarat) ? data.ziyarat.filter(isValid) : [],
         taqibat: isV2 && Array.isArray(data.taqibat) ? data.taqibat.filter(isValid) : [],
       };
-      let addedTotal = 0, skippedTotal = 0;
-      const nextByTab = { ...customByTab };
+      // Build the merged list per tab first, then persist tab-by-tab
+      // with its own try/catch so a quota failure on one tab doesn't
+      // leave localStorage ahead of React state. Each tab's success
+      // is reflected in `finalByTab`; the message at the end honestly
+      // names the tabs that didn't make it.
+      const addedByTab    = {};
+      const skippedByTab  = {};
+      const nextByTab     = { ...customByTab };
       for (const t of ['duas', 'ziyarat', 'taqibat']) {
         const existing = new Set((customByTab[t] || []).map((d) => d.id));
-        const added = (incomingByTab[t] || []).filter((d) => !existing.has(d.id));
-        const skipped = (incomingByTab[t] || []).length - added.length;
-        addedTotal += added.length;
-        skippedTotal += skipped;
-        nextByTab[t] = [...added, ...(customByTab[t] || [])];
-        saveCustomForTab(t, nextByTab[t]);
+        const added    = (incomingByTab[t] || []).filter((d) => !existing.has(d.id));
+        const skipped  = (incomingByTab[t] || []).length - added.length;
+        addedByTab[t]   = added.length;
+        skippedByTab[t] = skipped;
+        nextByTab[t]    = [...added, ...(customByTab[t] || [])];
       }
-      setCustomByTab(nextByTab);
-      setMsg(`تمّت إضافة ${addedTotal} عنصراً${skippedTotal > 0 ? ` (تخطيت ${skippedTotal} موجود مسبقاً)` : ''}`);
+      const finalByTab = { ...customByTab };
+      const failedTabs = [];
+      let savedAdded = 0, savedSkipped = 0;
+      for (const t of ['duas', 'ziyarat', 'taqibat']) {
+        try {
+          saveCustomForTab(t, nextByTab[t]);
+          finalByTab[t] = nextByTab[t];
+          savedAdded   += addedByTab[t];
+          savedSkipped += skippedByTab[t];
+        } catch (_) {
+          failedTabs.push(t);
+        }
+      }
+      setCustomByTab(finalByTab);
+      if (failedTabs.length === 0) {
+        setMsg(`تمّت إضافة ${savedAdded} عنصراً${savedSkipped > 0 ? ` (تخطيت ${savedSkipped} موجود مسبقاً)` : ''}`);
+      } else if (savedAdded === 0) {
+        setMsg('تعذّر الاستيراد — تخزين المتصفّح ممتلئ');
+      } else {
+        const TAB_AR_PLURAL = { duas: 'الأدعية', ziyarat: 'الزيارات', taqibat: 'التعقيبات' };
+        const failedLabels  = failedTabs.map((t) => TAB_AR_PLURAL[t]).join(' و');
+        setMsg(`تم استيراد ${savedAdded} عنصراً — تعذّر حفظ ${failedLabels}`);
+      }
     } catch (err) {
       setMsg('فشل الاستيراد — ' + friendlyErrorTitle(err));
     }
