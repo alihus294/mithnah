@@ -38,6 +38,22 @@ const ORDER = [
   'mujeer',
   'adeela',
   'asharat',
+  // المناجاة الخمس عشرة للإمام السجاد عليه السلام
+  'munajat-1-taibeen',
+  'munajat-2-shakin',
+  'munajat-3-khaifin',
+  'munajat-4-rajin',
+  'munajat-5-raghibin',
+  'munajat-6-shakirin',
+  'munajat-7-mutiin',
+  'munajat-8-muridin',
+  'munajat-9-muhibbin',
+  'munajat-10-mutawassilin',
+  'munajat-11-muftaqirin',
+  'munajat-12-arifin',
+  'munajat-13-zakirin',
+  'munajat-14-mutasimin',
+  'munajat-15-zahidin',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
