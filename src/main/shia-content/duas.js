@@ -61,6 +61,11 @@ const ORDER = [
   'salawat-14',
   'dua-sahar',
   'sunday-ziyarah',
+  'monday-ziyarah',
+  'tuesday-ziyarah',
+  'wednesday-ziyarah',
+  'thursday-ziyarah',
+  'saturday-ziyarah',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
