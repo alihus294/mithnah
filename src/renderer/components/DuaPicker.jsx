@@ -34,41 +34,73 @@ const CUSTOM_KEYS = {
 // flip — rare.
 const WELCOME_KEY = 'mithnah:dua-picker:welcomed';
 const RECENTS_LIMIT = 8;
+const CUSTOM_LIST_MAX = 100;
+// Body cap for a single custom entry. The textarea, the slice that
+// runs at save time, and the counter UI all read from this one
+// constant so they cannot drift apart. Bumping this here moves all
+// four call sites together.
+const CUSTOM_BODY_MAX = 20000;
+const CUSTOM_BODY_WARN = CUSTOM_BODY_MAX - 2000;
 
 // Load / save the operator's custom entries for a given tab. Each
 // entry is { id, title_ar, source, body }. The id prefix `custom:`
 // makes them easy to distinguish from bundled content.
 function loadCustomForTab(tab) {
-  try {
-    const key = CUSTOM_KEYS[tab];
-    if (!key) return [];
-    const raw = localStorage.getItem(key);
-    // Migrate the pre-2026-04-23 single-bucket storage: anything in
-    // the legacy `:custom` key belongs to the duas tab.
-    if (!raw && tab === 'duas') {
-      const legacy = localStorage.getItem(CUSTOM_DUAS_LEGACY_KEY);
-      if (legacy) {
-        try {
-          const parsed = JSON.parse(legacy);
-          if (Array.isArray(parsed)) {
-            localStorage.setItem(key, legacy);
-            return parsed.filter((x) => x && typeof x === 'object' && typeof x.id === 'string');
-          }
-        } catch (_) { /* ignore legacy parse error */ }
+  const key = CUSTOM_KEYS[tab];
+  if (!key) return [];
+  let raw;
+  try { raw = localStorage.getItem(key); }
+  catch (err) {
+    console.error(`[dua-picker] localStorage.getItem(${key}) failed: ${err && err.message}`);
+    return [];
+  }
+  // Migrate the pre-2026-04-23 single-bucket storage: anything in
+  // the legacy `:custom` key belongs to the duas tab.
+  if (!raw && tab === 'duas') {
+    const legacy = (() => {
+      try { return localStorage.getItem(CUSTOM_DUAS_LEGACY_KEY); }
+      catch (_) { return null; }
+    })();
+    if (legacy) {
+      try {
+        const parsed = JSON.parse(legacy);
+        if (Array.isArray(parsed)) {
+          try { localStorage.setItem(key, legacy); } catch (_) { /* migration write best-effort */ }
+          return parsed.filter((x) => x && typeof x === 'object' && typeof x.id === 'string');
+        }
+      } catch (err) {
+        // Corrupt legacy payload — preserve it under a timestamped
+        // backup key so the next save doesn't silently overwrite the
+        // raw bytes. Operator can recover via DevTools localStorage.
+        const backupKey = `${CUSTOM_DUAS_LEGACY_KEY}:backup:${Date.now()}`;
+        try { localStorage.setItem(backupKey, legacy); localStorage.removeItem(CUSTOM_DUAS_LEGACY_KEY); } catch (_) {}
+        console.error(`[dua-picker] Corrupt legacy ${CUSTOM_DUAS_LEGACY_KEY}; backed up to ${backupKey}: ${err && err.message}`);
       }
-      return [];
     }
-    if (!raw) return [];
+    return [];
+  }
+  if (!raw) return [];
+  try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((x) => x && typeof x === 'object' && typeof x.id === 'string') : [];
-  } catch (_) { return []; }
+  } catch (err) {
+    // Corrupt blob — back the raw bytes up before the next save
+    // overwrites them. Without this the load returned [] and the
+    // first edit silently wiped real operator data.
+    const backupKey = `${key}:backup:${Date.now()}`;
+    try { localStorage.setItem(backupKey, raw); localStorage.removeItem(key); } catch (_) {}
+    console.error(`[dua-picker] Corrupt ${tab} (key=${key}); backed up to ${backupKey}: ${err && err.message}`);
+    return [];
+  }
 }
+// Throws on storage failure (e.g. QuotaExceededError) so the call
+// site can surface a real "couldn't save" message instead of letting
+// the entry vanish on next reload. Previously a swallowed catch
+// turned QuotaExceededError into invisible data loss.
 function saveCustomForTab(tab, list) {
-  try {
-    const key = CUSTOM_KEYS[tab];
-    if (!key) return;
-    localStorage.setItem(key, JSON.stringify(list.slice(0, 100)));
-  } catch (_) {}
+  const key = CUSTOM_KEYS[tab];
+  if (!key) return;
+  localStorage.setItem(key, JSON.stringify(list.slice(0, CUSTOM_LIST_MAX)));
 }
 function loadAllCustom() {
   return {
@@ -131,9 +163,15 @@ async function openDeck(kind, id) {
 // carry a pre-chunked `slides` array (one page per `text` entry);
 // custom items only carry the raw `body` string since the main-process
 // chunker runs lazily at openCustom time. We mirror the chunker's
-// rules here for custom (sub-lines wrapped at ~90 chars, ≤2 sub-lines
-// per page) so the badge agrees with what the slideshow actually
-// renders within ±1 page.
+// rules here for custom so the badge agrees with what the slideshow
+// actually renders within ±1 page.
+//
+// IMPORTANT: these two constants MUST stay in sync with
+// DEFAULT_WRAP_CHARS and DEFAULT_MAX_LINES in
+// src/main/shia-content/chunker.js. If you change one side without
+// the other the badge silently lies about page count.
+const CHUNK_MIRROR_WRAP_CHARS = 90;
+const CHUNK_MIRROR_LINES_PER_PAGE = 2;
 function countPagesForItem(item) {
   if (Array.isArray(item?.slides)) {
     return item.slides.filter((s) => s && s.kind === 'text').length;
@@ -144,9 +182,9 @@ function countPagesForItem(item) {
   for (const raw of body.split('\n')) {
     const line = raw.trim();
     if (!line) continue;
-    sublineCount += Math.max(1, Math.ceil(line.length / 90));
+    sublineCount += Math.max(1, Math.ceil(line.length / CHUNK_MIRROR_WRAP_CHARS));
   }
-  return Math.max(1, Math.ceil(sublineCount / 2));
+  return Math.max(1, Math.ceil(sublineCount / CHUNK_MIRROR_LINES_PER_PAGE));
 }
 
 export default function DuaPicker() {
@@ -184,7 +222,10 @@ export default function DuaPicker() {
   // Delete-confirmation modal state. window.confirm returns null
   // silently inside packaged Electron kiosk windows (no native dialog
   // attaches), so the 🗑 button looked broken in production. Replaced
-  // with an in-renderer modal — null = closed; { id, title } = open.
+  // with an in-renderer modal — null = closed; { id, tab, title } =
+  // open. The `tab` field freezes which bucket the delete targets,
+  // because the active tab can change between opening the modal and
+  // pressing نعم (e.g. via a phone-driven IPC close+reopen).
   const [confirmDelete, setConfirmDelete] = useState(null);
   // Favorites-only filter. Activated by the FloatingMenu "⭐ المفضّلة"
   // shortcut so the caretaker reaches their starred items in one click
@@ -280,8 +321,19 @@ export default function DuaPicker() {
     return () => window.removeEventListener('mithnah:request-favorites', onFav);
   }, []);
   // Reset favoritesMode when the picker closes so the next plain F4 open
-  // shows the full library, not the last favorites-only view.
-  useEffect(() => { if (!open) setFavoritesMode(false); }, [open]);
+  // shows the full library, not the last favorites-only view. Same
+  // for confirmDelete: a phone-driven close while the modal is up
+  // shouldn't leave the dialog primed for the next reopen.
+  useEffect(() => {
+    if (!open) {
+      setFavoritesMode(false);
+      setConfirmDelete(null);
+    }
+  }, [open]);
+  // A tab switch invalidates an in-flight delete (it targets the old
+  // tab's id; the new tab's list won't contain it). Clear the modal
+  // so the operator can re-initiate against the new tab if needed.
+  useEffect(() => { setConfirmDelete(null); }, [tab]);
 
   // Retry counter — bumped by the "إعادة المحاولة" button so the
   // loader effect can re-run on demand.
@@ -354,7 +406,7 @@ export default function DuaPicker() {
   const saveCustomDua = (draft) => {
     const id = draft.id || `custom:${Date.now()}-${Math.floor(Math.random() * 1e6).toString(36)}`;
     const title = (draft.title || '').trim().slice(0, 200);
-    const body = (draft.body || '').trim().slice(0, 20000);
+    const body = (draft.body || '').trim().slice(0, CUSTOM_BODY_MAX);
     if (!title || !body) { setMsg('الرجاء إدخال العنوان والنص'); return; }
     // Save to the tab the editor was OPENED on (frozen into
     // `editor.tab`), not the currently-active tab. Without this, a
@@ -370,18 +422,29 @@ export default function DuaPicker() {
       if (exists) return list.map((x) => (x.id === id ? entry : x));
       return [entry, ...list];
     })();
+    // Persist FIRST so a quota error doesn't leave the in-memory
+    // state ahead of localStorage. If save throws the entry never
+    // appears in the list — the operator sees an honest failure.
+    try { saveCustomForTab(targetTab, next); }
+    catch (err) { setMsg('تعذّر الحفظ — ' + friendlyErrorTitle(err)); return; }
     setCustomByTab({ ...customByTab, [targetTab]: next });
-    saveCustomForTab(targetTab, next);
     setEditor(null);
     const savedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[targetTab] || 'العنصر';
     setMsg(`تم حفظ ${savedLabel}`);
     dismissWelcome();
   };
-  const deleteCustomDua = (id) => {
-    const list = customByTab[tab] || [];
+  // Takes the tab the delete was initiated on (captured in the
+  // confirmDelete state) so a tab-switch between opening the modal
+  // and confirming cannot misroute the deletion to the wrong bucket.
+  const deleteCustomDua = (id, fromTab) => {
+    const targetTab = fromTab || tab;
+    const list = customByTab[targetTab] || [];
     const next = list.filter((x) => x.id !== id);
-    setCustomByTab({ ...customByTab, [tab]: next });
-    saveCustomForTab(tab, next);
+    try { saveCustomForTab(targetTab, next); }
+    catch (err) { setMsg('تعذّر الحذف — ' + friendlyErrorTitle(err)); return; }
+    setCustomByTab({ ...customByTab, [targetTab]: next });
+    const deletedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[targetTab] || 'العنصر';
+    setMsg(`تم حذف ${deletedLabel}`);
   };
 
   // Export every tab's custom entries together in a single JSON
@@ -703,7 +766,7 @@ export default function DuaPicker() {
                         className="dua-picker__delete"
                         aria-label="حذف الدعاء"
                         title="حذف"
-                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: item.id, title: item.title_ar }); }}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: item.id, tab, title: item.title_ar }); }}
                       >🗑</button>
                     </>
                   )}
@@ -760,10 +823,10 @@ export default function DuaPicker() {
           safe action so a stray Enter cancels instead of deletes. */}
       {confirmDelete && (
         <ConfirmDeleteDua
-          singular={{ duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر'}
+          singular={{ duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[confirmDelete.tab] || 'عنصر'}
           title={confirmDelete.title}
           onCancel={() => setConfirmDelete(null)}
-          onConfirm={() => { deleteCustomDua(confirmDelete.id); setConfirmDelete(null); }}
+          onConfirm={() => { deleteCustomDua(confirmDelete.id, confirmDelete.tab); setConfirmDelete(null); }}
         />
       )}
 
@@ -841,22 +904,22 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
             onChange={(e) => setBody(e.target.value)}
             placeholder={`اكتب أو الصق نص ${singular === 'دعاء' ? 'الدعاء' : singular === 'زيارة' ? 'الزيارة' : 'التعقيب'} بالكامل هنا...`}
             rows={10}
-            maxLength={20000}
+            maxLength={CUSTOM_BODY_MAX}
           />
           {/* Live counter so a long ziyarah (eg. Ashura zeerah) doesn't
-              silently lose tail content to the saveCustomDua slice(20000)
-              cap. Turns muted-red once within 2 000 chars of the limit
-              to nudge the operator to trim before they paste more. */}
+              silently lose tail content to the saveCustomDua slice cap.
+              Turns muted-red once within 2 000 chars of the limit to
+              nudge the operator to trim before they paste more. */}
           <div
             className="inline-modal__hint"
             style={{
               textAlign: 'end',
               fontSize: 14,
               marginTop: 6,
-              color: body.length >= 18000 ? '#e89898' : 'var(--m-text-muted)',
+              color: body.length >= CUSTOM_BODY_WARN ? '#e89898' : 'var(--m-text-muted)',
             }}
           >
-            {toArabicDigits(body.length)} / {toArabicDigits(20000)}
+            {toArabicDigits(body.length)} / {toArabicDigits(CUSTOM_BODY_MAX)}
           </div>
         </div>
         <div className="inline-modal__buttons">

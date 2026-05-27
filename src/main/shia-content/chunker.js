@@ -23,6 +23,11 @@
 //
 // An earlier build used 3 / 220; that was tuned for a 66px font
 // cap with line-height 1.55 and is too dense when the font grows.
+//
+// NOTE: DEFAULT_MAX_LINES and DEFAULT_WRAP_CHARS are mirrored in
+// src/renderer/components/DuaPicker.jsx (CHUNK_MIRROR_*) so the
+// page-count badge for custom items can be computed without an IPC
+// round-trip. If you change either constant here, update the mirror.
 const DEFAULT_MAX_LINES = 2;
 const DEFAULT_MAX_CHARS = 160;
 // A single source line longer than this is wrapped at the nearest
