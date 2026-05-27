@@ -28,6 +28,17 @@ const CUSTOM_KEYS = {
   ziyarat: 'mithnah:dua-picker:custom:ziyarat',
   taqibat: 'mithnah:dua-picker:custom:taqibat',
 };
+// Arabic grammatical forms keyed by tab id. Three forms because the
+// UI uses each in different contexts:
+//   - singular  (no article) — "إضافة دعاء", "حذف زيارة"
+//   - definite  (with article) — "تم حفظ الدعاء", "تم حذف الزيارة"
+//   - plural    (with article) — "الأدعية والزيارات" tab labels, import messages
+// Single source of truth so a new tab needs one edit, not seven.
+const TAB_AR = {
+  duas:    { singular: 'دعاء',  definite: 'الدعاء',  plural: 'الأدعية' },
+  ziyarat: { singular: 'زيارة', definite: 'الزيارة', plural: 'الزيارات' },
+  taqibat: { singular: 'تعقيب', definite: 'التعقيب', plural: 'التعقيبات' },
+};
 // One-shot flag: shown as a welcome strip the FIRST time the library
 // opens. Dismissed automatically after the operator adds a dua or
 // clicks ×. Cleared from localStorage to show again requires manual
@@ -46,14 +57,16 @@ const CUSTOM_BODY_WARN = CUSTOM_BODY_MAX - 2000;
 // is { id, title_ar, source, body }; the `custom:` id prefix makes
 // them easy to distinguish from bundled content.
 //
-// SIDE EFFECT: on a corrupt JSON payload this helper writes a
-// timestamped backup key (`<key>:backup:<Date.now()>`) and removes
-// the original — preserving the raw bytes for manual recovery
-// while letting the picker continue with an empty list. The
-// alternative (a silent return []) wiped operator data on the very
-// next save. The name stays `loadCustomForTab` because every call
-// site treats this as "give me the list"; the repair is best-effort
-// and never blocks loading.
+// SIDE EFFECT: on a corrupt JSON payload — either the current
+// per-tab key or the legacy `:custom` migration source — this
+// helper writes a timestamped backup key
+// (`<original-key>:backup:<Date.now()>`) and removes the original,
+// preserving the raw bytes for manual recovery while letting the
+// picker continue with an empty list. The alternative (a silent
+// return []) wiped operator data on the very next save. The name
+// stays `loadCustomForTab` because every call site treats this as
+// "give me the list"; the repair is best-effort and never blocks
+// loading.
 function loadCustomForTab(tab) {
   const key = CUSTOM_KEYS[tab];
   if (!key) return [];
@@ -144,9 +157,9 @@ function saveIdList(key, list) {
 const tabCache = new Map();
 
 const TABS = [
-  { id: 'duas',     label: 'الأدعية' },
-  { id: 'ziyarat',  label: 'الزيارات' },
-  { id: 'taqibat',  label: 'التعقيبات' },
+  { id: 'duas',     label: TAB_AR.duas.plural },
+  { id: 'ziyarat',  label: TAB_AR.ziyarat.plural },
+  { id: 'taqibat',  label: TAB_AR.taqibat.plural },
   // Tasbih al-Zahra deliberately NOT in the dua library — it's the
   // post-prayer dhikr, so it appears automatically at the tail end of
   // every Prayer Tracker sequence (F5) after the salam step.
@@ -444,7 +457,7 @@ export default function DuaPicker() {
     catch (err) { setMsg('تعذّر الحفظ — ' + friendlyErrorTitle(err)); return; }
     setCustomByTab({ ...customByTab, [targetTab]: next });
     setEditor(null);
-    const savedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[targetTab] || 'العنصر';
+    const savedLabel = TAB_AR[targetTab]?.definite || 'العنصر';
     setMsg(`تم حفظ ${savedLabel}`);
     dismissWelcome();
   };
@@ -463,7 +476,7 @@ export default function DuaPicker() {
     try { saveCustomForTab(fromTab, next); }
     catch (err) { setMsg('تعذّر الحذف — ' + friendlyErrorTitle(err)); return; }
     setCustomByTab({ ...customByTab, [fromTab]: next });
-    const deletedLabel = { duas: 'الدعاء', ziyarat: 'الزيارة', taqibat: 'التعقيب' }[fromTab] || 'العنصر';
+    const deletedLabel = TAB_AR[fromTab]?.definite || 'العنصر';
     setMsg(`تم حذف ${deletedLabel}`);
   };
 
@@ -564,18 +577,25 @@ export default function DuaPicker() {
           finalByTab[t] = nextByTab[t];
           savedAdded   += addedByTab[t];
           savedSkipped += skippedByTab[t];
-        } catch (_) {
+        } catch (err) {
+          // Failure is recorded in failedTabs and surfaced in the
+          // partial-success message below; console keeps the specific
+          // reason (QuotaExceededError vs SecurityError vs unexpected)
+          // for DevTools triage so the toast can stay user-friendly.
+          console.error(`[dua-picker] importCustomDuas: tab ${t} failed: ${err && err.message}`);
           failedTabs.push(t);
         }
       }
       setCustomByTab(finalByTab);
       if (failedTabs.length === 0) {
         setMsg(`تمّت إضافة ${savedAdded} عنصراً${savedSkipped > 0 ? ` (تخطيت ${savedSkipped} موجود مسبقاً)` : ''}`);
-      } else if (savedAdded === 0) {
-        setMsg('تعذّر الاستيراد — تخزين المتصفّح ممتلئ');
       } else {
-        const TAB_AR_PLURAL = { duas: 'الأدعية', ziyarat: 'الزيارات', taqibat: 'التعقيبات' };
-        const failedLabels  = failedTabs.map((t) => TAB_AR_PLURAL[t]).join(' و');
+        // Honest partial-success message — names the tabs that failed,
+        // reports the count actually saved. Avoids the prior misfire
+        // where savedAdded === 0 (e.g. an all-duplicates duas import
+        // that succeeded with zero new entries) misread as total
+        // failure even though one tab persisted cleanly.
+        const failedLabels = failedTabs.map((t) => TAB_AR[t].plural).join(' و');
         setMsg(`تم استيراد ${savedAdded} عنصراً — تعذّر حفظ ${failedLabels}`);
       }
     } catch (err) {
@@ -662,8 +682,8 @@ export default function DuaPicker() {
               shift with the active tab so nothing says "إضافة دعاء"
               on the ziyarat tab. */}
           {(() => {
-            const singularLabel = { duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر';
-            const pluralLabel   = { duas: 'الأدعية', ziyarat: 'الزيارات', taqibat: 'التعقيبات' }[tab] || 'العناصر';
+            const singularLabel = TAB_AR[tab]?.singular || 'عنصر';
+            const pluralLabel   = TAB_AR[tab]?.plural   || 'العناصر';
             return (
               <>
               <button
@@ -869,7 +889,7 @@ export default function DuaPicker() {
           safe action so a stray Enter cancels instead of deletes. */}
       {confirmDelete && (
         <ConfirmDeleteDua
-          singular={{ duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[confirmDelete.tab] || 'عنصر'}
+          singular={TAB_AR[confirmDelete.tab]?.singular || 'عنصر'}
           title={confirmDelete.title}
           onCancel={() => setConfirmDelete(null)}
           onConfirm={() => { deleteCustomDua(confirmDelete.id, confirmDelete.tab); setConfirmDelete(null); }}
@@ -920,7 +940,7 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || '');
   const [body, setBody]   = useState(initial?.body  || '');
   const onKeyDown = (e) => { if (e.key === 'Escape') onCancel(); };
-  const singular    = { duas: 'دعاء', ziyarat: 'زيارة', taqibat: 'تعقيب' }[tab] || 'عنصر';
+  const singular    = TAB_AR[tab]?.singular || 'عنصر';
   const placeholder = { duas: 'مثال: دعاء الفرج', ziyarat: 'مثال: زيارة الأربعين المختصرة', taqibat: 'مثال: تعقيب صلاة الفجر' }[tab] || 'العنوان';
   return (
     <div className="inline-modal" role="dialog" aria-modal="true" dir="rtl" onKeyDown={onKeyDown}>
@@ -948,7 +968,7 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
             className="inline-modal__input inline-modal__textarea"
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder={`اكتب أو الصق نص ${singular === 'دعاء' ? 'الدعاء' : singular === 'زيارة' ? 'الزيارة' : 'التعقيب'} بالكامل هنا...`}
+            placeholder={`اكتب أو الصق نص ${TAB_AR[tab]?.definite || 'العنصر'} بالكامل هنا...`}
             rows={10}
             maxLength={CUSTOM_BODY_MAX}
           />
