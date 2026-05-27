@@ -132,6 +132,156 @@ git diff --stat; git status --short; tsc --noEmit; vitest --pool=forks
 | Zero output | check `git diff --stat` |
 | Auth lost | Run `check_claude_auth` from ~/.bashrc |
 
+## Plugins (8 Required)
+
+### Install Once
+
+```
+/plugin install typescript-lsp@claude-plugins-official
+/plugin install security-guidance@claude-plugins-official
+/plugin install code-review@claude-plugins-official
+/plugin install pr-review-toolkit@claude-plugins-official
+/plugin install hookify@claude-plugins-official
+/plugin install claude-md-management@claude-plugins-official
+/plugin install session-report@claude-plugins-official
+/plugin install commit-commands@claude-plugins-official
+```
+
+### Plugin Usage Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  START: New task from Ali                                       │
+│  Trigger: "سوي" or "كمل"                                        │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 1: commit-commands                                        │
+│  Action: git status → stage changed files                       │
+│  Output: Clean working tree, ready to work                      │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 2: typescript-lsp                                         │
+│  Action: Type check + IntelliSense on target file               │
+│  Output: Type errors identified before edit                     │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 3: Execute task (Print Mode or Tmux Mode)                 │
+│  Rules: One file, <200 lines, serial only                       │
+│  Output: Code changes applied                                   │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 4: security-guidance (AUTO — runs on file edit)           │
+│  Action: Scan for XSS, injection, unsafe patterns               │
+│  If RLS-related file: Manual RLS checklist (see below)          │
+│  Output: Security warnings or "PASS"                            │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 5: code-review                                            │
+│  Action: Review changed code locally                            │
+│  Focus: Logic, types, tests, architecture                       │
+│  Output: Review comments or "LGTM"                              │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 6: Hermes Verification                                    │
+│  Action: git diff --stat; tsc --noEmit; vitest --pool=forks     │
+│  Output: Build + tests pass/fail                                │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 7: commit-commands                                        │
+│  Action: Generate commit message → commit                       │
+│  Format: Conventional Commits (feat:, fix:, security:)          │
+│  Output: Clean commit on current branch                         │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 8: session-report                                         │
+│  Action: Generate session summary                               │
+│  Output: Files changed, decisions made, issues unresolved       │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 9: claude-md-management                                   │
+│  Action: Update CLAUDE.md with new learnings                    │
+│  Condition: Only if new pattern/rule discovered                 │
+│  Output: CLAUDE.md updated (pending Ali approval)               │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 10: Report to Hermes                                      │
+│  Format: "### ALL STEPS COMPLETE — [branch] [commit] [status]"  │
+│  Hermes: Verify, then report to Ali                             │
+└─────────────────────────────────────────────────────────────────┘
+
+                    [PR Workflow — when Ali says "ارمي"]
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 11: pr-review-toolkit                                     │
+│  Trigger: Before creating PR                                    │
+│  Action: Full PR review — comments, tests, error handling       │
+│  Output: PR readiness report                                    │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  STEP 12: hookify                                               │
+│  Trigger: On "git push" or "deploy" command                     │
+│  Action: BLOCK unless Ali explicitly approved                   │
+│  Message: "Did Ali say 'ارمي'? Stop if no."                     │
+│  Output: Blocked or Allowed                                     │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### RLS Checklist (Manual — security-guidance does NOT catch all)
+
+When editing ANY migration/policy file:
+
+```markdown
+- [ ] ALTER TABLE ... ENABLE ROW LEVEL SECURITY
+- [ ] Policy has USING (not true)
+- [ ] Policy has WITH CHECK for insert/update
+- [ ] auth.uid() used correctly
+- [ ] Tenant/org isolation present
+- [ ] No service-role in frontend code
+- [ ] SECURITY DEFINER functions reviewed manually
+- [ ] Tests pass for anon/authenticated/service roles
+```
+
+### Hook Rules (hookify)
+
+```markdown
+# .claude/hooks/no-deploy-without-approval.md
+Block: deploy, push, merge, git push
+Unless: Ali said "ارمي" in this session
+Action: STOP + ask for approval
+
+# .claude/hooks/no-rls-without-checklist.md
+Block: Edit files matching */migrations/*, *.policy.sql
+Unless: RLS checklist acknowledged
+Action: WARN + show checklist
+
+# .claude/hooks/no-service-role-in-frontend.md
+Block: Edit files matching */frontend/**/* + contain "service_role"
+Action: BLOCK + error message
+```
+
 ## Hard Rules
 
 - Hermes coordinates ONLY. Claude executes ONLY.
