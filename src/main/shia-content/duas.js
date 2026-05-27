@@ -11,62 +11,45 @@ const path = require('path');
 const { chunkSlides } = require('./chunker');
 
 const DATA_DIR = path.join(__dirname, 'data');
-const ORDER = [
-  'kumayl',
-  'faraj',
-  'ahd',
-  'tawassul',
-  'sabah',
-  'iftitah',
-  'munajat-shabaniya',
-  'nudbah',
-  'samat',
-  'abu-hamza',
-  'arafah',
-  'jawshan-saghir',
-  // أدعية الأيام السبعة (من مفاتيح الجنان)
-  'yawm-sabt',
-  'yawm-ahad',
-  'yawm-ithnayn',
-  'yawm-thulatha',
-  'yawm-arbiaa',
-  'yawm-khamis',
-  'yawm-jumua',
-  // أدعية أخرى من مفاتيح الجنان
-  'mashlool',
-  'makarem',
-  'mujeer',
-  'adeela',
-  'asharat',
-  // المناجاة الخمس عشرة للإمام السجاد عليه السلام
-  'munajat-1-taibeen',
-  'munajat-2-shakin',
-  'munajat-3-khaifin',
-  'munajat-4-rajin',
-  'munajat-5-raghibin',
-  'munajat-6-shakirin',
-  'munajat-7-mutiin',
-  'munajat-8-muridin',
-  'munajat-9-muhibbin',
-  'munajat-10-mutawassilin',
-  'munajat-11-muftaqirin',
-  'munajat-12-arifin',
-  'munajat-13-zakirin',
-  'munajat-14-mutasimin',
-  'munajat-15-zahidin',
-  'munajat-kufa',
-  'yastashir',
-  'dua-faraj-hujjat',
-  'salawat-imam-zaman',
-  'salawat-14',
-  'dua-sahar',
-  'sunday-ziyarah',
-  'monday-ziyarah',
-  'tuesday-ziyarah',
-  'wednesday-ziyarah',
-  'thursday-ziyarah',
+// ── Dynamic ORDER: scans the data/ directory at runtime so we never
+// reference a file that doesn't exist. Legacy IDs come first, then
+// everything else sorted alphabetically.
+//
+function scanDataDir() {
+  try {
+    return fs.readdirSync(DATA_DIR)
+      .filter(f => f.endsWith('.json'))
+      .map(f => f.replace(/\.json$/, ''));
+  } catch {
+    return [];
+  }
+}
+
+const ALL_FILES = scanDataDir();
+
+// Legacy 51 duas — keep their original order when present
+const LEGACY_ORDER = [
+  'kumayl', 'faraj', 'ahd', 'tawassul', 'sabah', 'iftitah',
+  'munajat-shabaniya', 'nudbah', 'samat', 'abu-hamza', 'arafah',
+  'jawshan-saghir', 'yawm-sabt', 'yawm-ahad', 'yawm-ithnayn',
+  'yawm-thulatha', 'yawm-arbiaa', 'yawm-khamis', 'yawm-jumua',
+  'mashlool', 'makarem', 'mujeer', 'adeela', 'asharat',
+  'munajat-1-taibeen', 'munajat-2-shakin', 'munajat-3-khaifin',
+  'munajat-4-rajin', 'munajat-5-raghibin', 'munajat-6-shakirin',
+  'munajat-7-mutiin', 'munajat-8-muridin', 'munajat-9-muhibbin',
+  'munajat-10-mutawassilin', 'munajat-11-muftaqirin',
+  'munajat-12-arifin', 'munajat-13-zakirin', 'munajat-14-mutasimin',
+  'munajat-15-zahidin', 'munajat-kufa', 'yastashir',
+  'dua-faraj-hujjat', 'salawat-imam-zaman', 'salawat-14',
+  'dua-sahar', 'sunday-ziyarah', 'monday-ziyarah',
+  'tuesday-ziyarah', 'wednesday-ziyarah', 'thursday-ziyarah',
   'saturday-ziyarah',
-];
+].filter(id => ALL_FILES.includes(id));
+
+// Remaining files (new mafatih duas) sorted alphabetically
+const remaining = ALL_FILES.filter(id => !LEGACY_ORDER.includes(id)).sort();
+
+const ORDER = [...LEGACY_ORDER, ...remaining];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
 // the app from booting. We log the failure and fall back to a minimal
