@@ -59,6 +59,8 @@ const ORDER = [
   'dua-faraj-hujjat',
   'salawat-imam-zaman',
   'salawat-14',
+  'dua-sahar',
+  'sunday-ziyarah',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
