@@ -39,11 +39,13 @@ const TAB_AR = {
   ziyarat: { singular: 'زيارة', definite: 'الزيارة', plural: 'الزيارات' },
   taqibat: { singular: 'تعقيب', definite: 'التعقيب', plural: 'التعقيبات' },
 };
-// The canonical iteration order for the three tabs — derived from
-// TAB_AR so a future tab addition automatically reaches every loop
-// that walks all tabs (notably importCustomDuas), instead of needing
-// each `for` literal to be updated by hand.
-const TAB_IDS = Object.keys(TAB_AR);
+// Iteration order for all tabs (declaration order of TAB_AR).
+// Derived from TAB_AR so a future tab addition automatically reaches
+// every loop that walks all tabs (notably importCustomDuas) without
+// each `for` literal needing to be updated by hand. Frozen so a
+// caller can't accidentally splice or push and silently break a
+// downstream loop.
+const TAB_IDS = Object.freeze(Object.keys(TAB_AR));
 // One-shot flag: shown as a welcome strip the FIRST time the library
 // opens. Dismissed automatically after the operator adds a dua or
 // clicks ×. Cleared from localStorage to show again requires manual
@@ -552,11 +554,18 @@ export default function DuaPicker() {
       const isValid = (d) => d && typeof d === 'object' &&
         typeof d.id === 'string' && d.id.startsWith('custom:') &&
         typeof d.title_ar === 'string' && typeof d.body === 'string';
-      const incomingByTab = {
-        duas:    isV2 ? (Array.isArray(data.duas)    ? data.duas.filter(isValid)    : []) : (data.duas || []).filter(isValid),
-        ziyarat: isV2 && Array.isArray(data.ziyarat) ? data.ziyarat.filter(isValid) : [],
-        taqibat: isV2 && Array.isArray(data.taqibat) ? data.taqibat.filter(isValid) : [],
-      };
+      // Derive incomingByTab from TAB_IDS so a new tab added to
+      // TAB_AR participates in imports automatically. v1 exports
+      // only ever carried `data.duas` (the format predates ziyarat
+      // and taqibat custom buckets); for v1, any non-duas tab gets
+      // an empty list.
+      const incomingByTab = Object.fromEntries(
+        TAB_IDS.map((t) => {
+          if (!isV2 && t !== 'duas') return [t, []];
+          const raw = Array.isArray(data[t]) ? data[t] : [];
+          return [t, raw.filter(isValid)];
+        })
+      );
       // Build the merged list per tab first, then persist tab-by-tab
       // with its own try/catch so a quota failure on one tab doesn't
       // leave localStorage ahead of React state. Each tab's success
