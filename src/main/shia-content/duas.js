@@ -32,6 +32,12 @@ const ORDER = [
   'yawm-arbiaa',
   'yawm-khamis',
   'yawm-jumua',
+  // أدعية أخرى من مفاتيح الجنان
+  'mashlool',
+  'makarem',
+  'mujeer',
+  'adeela',
+  'asharat',
 ];
 
 // Each dua load is isolated — one malformed JSON file must not prevent
