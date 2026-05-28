@@ -6,10 +6,24 @@ const taqibat    = require('./taqibat');
 const tasbih     = require('./tasbih');
 const events     = require('./hijri-events');
 
+const DUA_ID_ALIASES = Object.freeze({
+  'dua-kumail': 'kumayl',
+  'dua-arafa': 'arafah',
+  'dua-iftatah': 'iftitah',
+  'friday-dua': 'yawm-jumua',
+  'monday-ziarat': 'monday-ziyarah',
+  'salawat-imam-zamaan': 'salawat-imam-zaman',
+  'dua-ehed': 'ahd',
+  'dua-sabaah': 'sabah',
+  'dua-simat': 'samat',
+  'dua-thumali': 'abu-hamza'
+});
+
 // Public API. All lists are read-only — return frozen copies so a misbehaving
 // IPC caller can't mutate the in-process data.
 function listDuas()    { return duas.ALL.map(d => deepFreeze(clone(d))); }
-function getDua(id)    { const d = duas.ALL.find(x => x.id === id); return d ? deepFreeze(clone(d)) : null; }
+function resolveDuaId(id) { return typeof id === 'string' ? (DUA_ID_ALIASES[id] || id) : id; }
+function getDua(id)    { const canonicalId = resolveDuaId(id); const d = duas.ALL.find(x => x.id === canonicalId); return d ? deepFreeze(clone(d)) : null; }
 function listZiyarat() { return ziyarat.ALL.map(z => deepFreeze(clone(z))); }
 function getZiyarah(id){ const z = ziyarat.ALL.find(x => x.id === id); return z ? deepFreeze(clone(z)) : null; }
 function listTaqibat() { return taqibat.ALL.map(t => deepFreeze(clone(t))); }

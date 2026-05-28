@@ -100,3 +100,33 @@ test('eventsForHijriDate filters by month+day', () => {
   const empty = shia.eventsForHijriDate(null, 5, 17);
   assert.ok(Array.isArray(empty));
 });
+
+// Alias/migration tests for commit 1112866
+// shia already required above
+
+// Old IDs should resolve to new decks via alias
+const ALIAS_TESTS = [
+  ['dua-kumail', 'kumayl'],
+  ['dua-arafa', 'arafah'],
+  ['dua-iftatah', 'iftitah'],
+  ['friday-dua', 'yawm-jumua'],
+  ['monday-ziarat', 'monday-ziyarah'],
+  ['salawat-imam-zamaan', 'salawat-imam-zaman'],
+  ['dua-ehed', 'ahd'],
+  ['dua-sabaah', 'sabah'],
+  ['dua-simat', 'samat'],
+  ['dua-thumali', 'abu-hamza'],
+];
+
+for (const [oldId, newId] of ALIAS_TESTS) {
+  test(`alias ${oldId} → ${newId}`, () => {
+    const deck = shia.getDua(oldId);
+    assert.ok(deck, `getDua('${oldId}') should return a deck`);
+    assert.strictEqual(deck.id, newId, `deck.id should be canonical '${newId}'`);
+    assert.ok(Object.isFrozen(deck), 'deck should be frozen');
+  });
+}
+
+test('unknown id still returns null', () => {
+  assert.strictEqual(shia.getDua('not-a-real-dua'), null);
+});
