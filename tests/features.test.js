@@ -177,27 +177,27 @@ test('[qibla] rejects non-finite coordinates', () => {
 // (D) PIN hashing
 // ---------------------------------------------------------------------------
 
-test('[pin] hash-then-verify round trip succeeds', () => {
+test('[pin] hash-then-verify round trip succeeds', async () => {
   const { makePinHash, verifyPinAgainstHash, resetPinRateLimit } = require('../src/main/app-features');
   resetPinRateLimit();
   const stored = makePinHash('1234');
   assert.match(stored, /^[0-9a-f]+\$[0-9a-f]{128}$/);
-  assert.strictEqual(verifyPinAgainstHash('1234', stored), true);
+  assert.strictEqual(await verifyPinAgainstHash('1234', stored), true);
 });
 
-test('[pin] wrong PIN rejected', () => {
+test('[pin] wrong PIN rejected', async () => {
   const { makePinHash, verifyPinAgainstHash, resetPinRateLimit } = require('../src/main/app-features');
   resetPinRateLimit();
   const stored = makePinHash('5678');
-  assert.strictEqual(verifyPinAgainstHash('0000', stored), false);
+  assert.strictEqual(await verifyPinAgainstHash('0000', stored), false);
 });
 
-test('[pin] rate limits after 8 failures within a window', () => {
+test('[pin] rate limits after 8 failures within a window', async () => {
   const { makePinHash, verifyPinAgainstHash, resetPinRateLimit } = require('../src/main/app-features');
   resetPinRateLimit();
   const stored = makePinHash('9999');
-  for (let i = 0; i < 8; i++) verifyPinAgainstHash('0000', stored);
-  assert.throws(() => verifyPinAgainstHash('0000', stored), /المحاولات|انتظر/);
+  for (let i = 0; i < 8; i++) await verifyPinAgainstHash('0000', stored);
+  await assert.rejects(async () => verifyPinAgainstHash('0000', stored), /المحاولات|انتظر/);
 });
 
 test('[pin] invalid PIN length rejected at makePinHash', () => {
