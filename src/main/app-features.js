@@ -14,6 +14,32 @@ let _pinFailures = [];
 const PIN_WINDOW_MS = 10 * 60 * 1000;
 const PIN_MAX_FAILURES = 8;
 
+// Persist rate-limit state to disk so restart doesn't clear it.
+const PIN_STATE_PATH = path.join(require('os').tmpdir(), 'mithnah-pin-state.json');
+
+async function _loadPinFailures() {
+  try {
+    const raw = await fsp.readFile(PIN_STATE_PATH, 'utf8');
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) return data;
+  } catch (_) {}
+  return [];
+}
+
+async function _savePinFailures() {
+  try {
+    await fsp.writeFile(PIN_STATE_PATH, JSON.stringify(_pinFailures), 'utf8');
+  } catch (_) {}
+}
+
+// Initialize from disk on first use
+let _pinStateLoaded = false;
+async function _ensurePinState() {
+  if (_pinStateLoaded) return;
+  _pinFailures = await _loadPinFailures();
+  _pinStateLoaded = true;
+}
+
 // PIN hashing: scrypt with explicit cost parameters. The Node default
 // (N=16384, r=8, p=1) gives ~50ms per hash on a typical mosque-PC CPU,
 // which moves a 6-digit PIN from "brute-forced in seconds with plain
@@ -42,8 +68,9 @@ function makePinHash(pin) {
 
 // Constant-time compare of user input against stored "salt$hash". Returns
 // true on match. Rate-limits after too many failures in a window.
-function verifyPinAgainstHash(pin, stored) {
+async function verifyPinAgainstHash(pin, stored) {
   if (typeof stored !== 'string' || !stored.includes('$')) return false;
+  await _ensurePinState();
   const now = Date.now();
   _pinFailures = _pinFailures.filter((t) => now - t < PIN_WINDOW_MS);
   if (_pinFailures.length >= PIN_MAX_FAILURES) {
@@ -54,13 +81,14 @@ function verifyPinAgainstHash(pin, stored) {
   // Buffers must be same length for timingSafeEqual; pad if needed.
   const a = Buffer.from(hash, 'hex');
   const b = Buffer.from(candidate, 'hex');
-  if (a.length !== b.length) { _pinFailures.push(now); return false; }
+  if (a.length !== b.length) { _pinFailures.push(now); await _savePinFailures(); return false; }
   const ok = crypto.timingSafeEqual(a, b);
   if (!ok) _pinFailures.push(now);
+  await _savePinFailures();
   return ok;
 }
 
-function resetPinRateLimit() { _pinFailures = []; }
+function resetPinRateLimit() { _pinFailures = []; _savePinFailures().catch(() => {}); }
 
 // --- Qibla ------------------------------------------------------------------
 
@@ -119,6 +147,11 @@ async function importConfigFrom(dialog, window, applyFn) {
   if (raw.length > 1024 * 1024) throw new Error('config file too large');
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
+  // Guard against prototype pollution
+  const forbiddenKeys = ['__proto__', 'constructor', 'prototype'];
+  if (Object.keys(parsed).some(k => forbiddenKeys.includes(k))) {
+    throw new Error('invalid config keys');
+  }
   const applied = await applyFn(parsed);
   return { config: applied, path: filePaths[0] };
 }

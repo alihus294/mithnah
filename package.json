@@ -69,8 +69,7 @@
             "x64"
           ]
         }
-      ],
-      "icon": "src/public/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": true,
