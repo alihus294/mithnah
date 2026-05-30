@@ -62,9 +62,10 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 app.on('second-instance', () => {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) {
+    if (win.isMinimized()) win.restore();
+    win.focus();
   }
 });
 
@@ -146,7 +147,6 @@ const REMOTE_COMMAND_SET = new Set([
   'SET_APP_ZOOM'
 ]);
 
-let mainWindow;
 let remoteHttpServer = null;
 let remoteSocketServer = null;
 let remoteSessionCleanupTimer = null;
@@ -432,13 +432,15 @@ function getRemoteControlStatusPayload() {
 }
 
 function emitRemoteControlStatus() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('remote-control:status', getRemoteControlStatusPayload());
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send('remote-control:status', getRemoteControlStatusPayload());
 }
 
 function emitRemoteControlCommand(commandPayload) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  mainWindow.webContents.send('remote-control:command', commandPayload);
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send('remote-control:command', commandPayload);
 }
 
 function getRemoteRendererStatePayload() {
@@ -505,8 +507,16 @@ function normalizeRemoteCommandPayload(rawPayload) {
 }
 
 // ── Bootstrap: wire IPC handlers and lifecycle ───────────────────────────
+
+// Initialize prayer-times module before registering IPC handlers
+// (async init — awaited during lifecycle startup)
+let prayerTimesReady = prayerTimes.init(USER_DATA_PATH).catch((err) => {
+  console.error('[Mithnah] prayer-times init failed:', err);
+  throw err;
+});
+
 initIpcHandlers({
-  mainWindow: () => mainWindow,
+  mainWindow: getMainWindow,
   isFromMainWindow,
   zoomState,
   setGlobalZoom,
@@ -523,7 +533,7 @@ initIpcHandlers({
 });
 
 lifecycle.initLifecycle({
-  mainWindow: () => mainWindow,
+  mainWindow: getMainWindow,
   createWindow,
   getMainWindow,
   loadSettings,
@@ -546,5 +556,7 @@ lifecycle.initLifecycle({
   MOBILE_CONTROL_PORT,
   MOBILE_CONTROL_PIN,
   QRCode,
-  getRemoteControlStaticRoot
+  getRemoteControlStaticRoot,
+  prayerTimesReady,
+  pruneExpiredRemoteSessions
 });

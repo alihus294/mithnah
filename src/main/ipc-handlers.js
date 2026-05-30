@@ -8,6 +8,7 @@
 const { ipcMain, dialog } = require('electron');
 const path = require('path');
 const fsp = require('fs/promises');
+const { resolveBrowserWindow, isLiveBrowserWindow } = require('./frame-guard');
 
 // Dependencies injected at init time
 let mainWindow = null;
@@ -77,8 +78,8 @@ function initIpcHandlers(deps) {
   });
 
   ipcMain.on('remote-control:publish-state', (event, state) => {
-    const win = mainWindow?.deref ? mainWindow.deref() : mainWindow;
-    if (!win || win.isDestroyed()) return;
+    const win = resolveBrowserWindow(mainWindow);
+    if (!isLiveBrowserWindow(win)) return;
     if (event.sender.id !== win.webContents.id) return;
     setRemoteRendererState(state);
   });
@@ -137,7 +138,7 @@ function initIpcHandlers(deps) {
   ipcMain.handle('app:export-config', async (event) => {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
-      const result = await appFeatures.exportConfigTo(dialog, mainWindow, configPathOf(USER_DATA_PATH));
+      const result = await appFeatures.exportConfigTo(dialog, resolveBrowserWindow(mainWindow), configPathOf(USER_DATA_PATH));
       return { ok: true, data: result };
     } catch (err) {
       return { ok: false, error: err.message };
@@ -147,7 +148,7 @@ function initIpcHandlers(deps) {
   ipcMain.handle('app:import-config', async (event) => {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
-      const result = await appFeatures.importConfigFrom(dialog, mainWindow, async (parsed) => {
+      const result = await appFeatures.importConfigFrom(dialog, resolveBrowserWindow(mainWindow), async (parsed) => {
         return await prayerTimes.setConfig(parsed);
       });
       return { ok: true, data: result };
@@ -225,7 +226,7 @@ function initIpcHandlers(deps) {
   ipcMain.handle('app:upload-logo', async (event) => {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
-      const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow || null, {
+      const { canceled, filePaths } = await dialog.showOpenDialog(resolveBrowserWindow(mainWindow) || null, {
         title: 'اختر شعار المسجد — PNG بخلفية شفافة',
         properties: ['openFile'],
         filters: [{ name: 'PNG', extensions: ['png'] }]
@@ -245,8 +246,8 @@ function initIpcHandlers(deps) {
         return { ok: false, error: 'الملف ليس PNG صالحاً' };
       }
       await fsp.copyFile(src, LOGO_PATH);
-      const win = mainWindow?.deref ? mainWindow.deref() : mainWindow;
-      if (win && !win.isDestroyed()) {
+      const win = resolveBrowserWindow(mainWindow);
+      if (isLiveBrowserWindow(win)) {
         try { win.webContents.send('app:logo-changed'); } catch (_) {}
       }
       return { ok: true, data: { path: LOGO_PATH, sizeBytes: stat.size } };
@@ -259,8 +260,8 @@ function initIpcHandlers(deps) {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
       await fsp.rm(LOGO_PATH, { force: true });
-      const win = mainWindow?.deref ? mainWindow.deref() : mainWindow;
-      if (win && !win.isDestroyed()) {
+      const win = resolveBrowserWindow(mainWindow);
+      if (isLiveBrowserWindow(win)) {
         try { win.webContents.send('app:logo-changed'); } catch (_) {}
       }
       return { ok: true };

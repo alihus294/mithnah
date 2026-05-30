@@ -53,7 +53,7 @@ function createWindow() {
 
   // Load renderer
   const startUrl = process.env.ELECTRON_START_URL || url.format({
-    pathname: path.join(__dirname, '../../dist/index.html'),
+    pathname: path.join(__dirname, '../../../dist/renderer/index.html'),
     protocol: 'file:',
     slashes: true
   });
@@ -77,28 +77,11 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Zoom IPC handlers (local to this window)
-  ipcMain.removeHandler('zoom:get');
-  ipcMain.handle('zoom:get', () => getZoomFactor());
-
-  ipcMain.removeHandler('zoom:set');
-  ipcMain.handle('zoom:set', (_event, factor) => {
-    if (typeof factor !== 'number' || !isFinite(factor) || factor < 0.25 || factor > 5) return;
-    setZoomFactor(factor);
-    return factor;
-  });
-
-  ipcMain.removeHandler('zoom:reset');
-  ipcMain.handle('zoom:reset', () => {
-    setZoomFactor(1);
-    return 1;
-  });
+  // Zoom IPC handlers (local to this window) — removed; now handled by ipc-handlers.js
+  // with frame-guard protection.
 
   // Cleanup on close
   mainWindow.on('closed', () => {
-    ipcMain.removeHandler('zoom:get');
-    ipcMain.removeHandler('zoom:set');
-    ipcMain.removeHandler('zoom:reset');
     mainWindow = null;
   });
 

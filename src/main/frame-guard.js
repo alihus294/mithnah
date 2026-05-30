@@ -12,6 +12,25 @@
 
 let _getMainWindow = () => null;
 
+function resolveBrowserWindow(value) {
+  if (!value) return null;
+
+  if (typeof value === 'function') {
+    return resolveBrowserWindow(value());
+  }
+
+  if (typeof value.deref === 'function') {
+    return value.deref() || null;
+  }
+
+  return value;
+}
+
+function isLiveBrowserWindow(value) {
+  const win = resolveBrowserWindow(value);
+  return !!win && typeof win.isDestroyed === 'function' && !win.isDestroyed();
+}
+
 function register(getMainWindowFn) {
   if (typeof getMainWindowFn !== 'function') {
     throw new Error('frame-guard.register expects a function returning the main BrowserWindow');
@@ -20,8 +39,12 @@ function register(getMainWindowFn) {
 }
 
 function isFromMainWindow(event) {
-  const win = _getMainWindow();
-  return !!win && !win.isDestroyed() && event && event.sender && event.sender.id === win.webContents.id;
+  const win = resolveBrowserWindow(_getMainWindow);
+  return isLiveBrowserWindow(win)
+    && event
+    && event.sender
+    && win.webContents
+    && event.sender.id === win.webContents.id;
 }
 
 // Wrap an IPC handler so it returns `{ok: false, error: 'forbidden'}`
@@ -37,4 +60,10 @@ function requireMainWindow(handler) {
   };
 }
 
-module.exports = { register, isFromMainWindow, requireMainWindow };
+module.exports = {
+  register,
+  isFromMainWindow,
+  requireMainWindow,
+  resolveBrowserWindow,
+  isLiveBrowserWindow
+};

@@ -52,6 +52,7 @@ where meaningful.
   preventing junk-IP flood from evicting legitimate locked entries.
 
 ### Fixed
+- **Startup crashes after installation resolved.** Fixed renderer path resolution, frame-guard registration, IPC handler registration order, prayer-times initialization, and stale `mainWindow` references.
 - F3 no longer appears to hang: per-IPC 3-second Promise.race timeout
   + skeleton card with a live close button from the first keystroke.
 - `hijri.today()` null result no longer crashes `/api/phone-dashboard`.

@@ -7,6 +7,16 @@
 
 const { app } = require('electron');
 
+// IPC modules
+const prayerTimesIpc = require('./prayer-times/ipc');
+const hijriIpc = require('./hijri/ipc');
+const locationIpc = require('./location/ipc');
+const shiaContentIpc = require('./shia-content/ipc');
+const slideshowIpc = require('./slideshow/ipc');
+const updaterIpc = require('./updater/ipc');
+const bridgeIpc = require('./bridge/ipc');
+const marjaIpc = require('./marja/ipc');
+
 // ── State ──────────────────────────────────────────────────────────────────
 
 let isQuitting = false;
@@ -42,7 +52,35 @@ function initLifecycle(lifecycleDeps) {
 
   app.whenReady().then(async () => {
     try {
+      // Wait for prayer-times init before anything else
+      if (deps.prayerTimesReady) {
+        try { await deps.prayerTimesReady; } catch (err) {
+          console.error('[Mithnah] prayer-times init failed — continuing with defaults:', err);
+        }
+      }
       await deps.loadSettings();
+
+      // Register IPC handlers BEFORE creating the window so the renderer
+      // can call them immediately after loadURL without a race.
+      try {
+        const { ipcMain } = require('electron');
+        prayerTimesIpc.register(ipcMain);
+        hijriIpc.register(ipcMain);
+        locationIpc.register(ipcMain);
+        shiaContentIpc.register(ipcMain);
+        slideshowIpc.register(ipcMain);
+        updaterIpc.register(ipcMain);
+        bridgeIpc.register(ipcMain, () => deps.getMainWindow());
+        marjaIpc.register(ipcMain);
+        // Register frame guard with main window getter
+        const frameGuard = require('./frame-guard');
+        frameGuard.register(() => deps.getMainWindow());
+      } catch (err) {
+        console.error('[Mithnah] IPC registration failed — aborting startup:', err);
+        app.exit(1);
+        return;
+      }
+
       const win = await deps.createWindow();
 
       // Start remote control server
@@ -60,7 +98,6 @@ function initLifecycle(lifecycleDeps) {
       // Start auto-content scheduler
       try { deps.autoContent.start(); } catch (_) {}
 
-      // Emit initial remote control status
       deps.emitRemoteControlStatus();
 
       // Set up IP refresh timer
@@ -81,7 +118,9 @@ function initLifecycle(lifecycleDeps) {
       // Session cleanup timer
       const cleanupTimer = setInterval(() => {
         try {
-          deps.pruneExpiredRemoteSessions();
+          if (typeof deps.pruneExpiredRemoteSessions === 'function') {
+            deps.pruneExpiredRemoteSessions();
+          }
         } catch (_) {}
       }, 600000);
       deps.setRemoteSessionCleanupTimer(cleanupTimer);
