@@ -572,6 +572,16 @@ export default function SettingsOverlay() {
   // toggles don't affect anything visible.
   const onOccasion = (v) => apply({ occasionOverride: v }, 'info', 'تم ضبط وضع المناسبة');
   const onClockFormat = (v) => apply({ clockFormat: v }, 'info', v === '12' ? 'تم التبديل إلى نظام ١٢ ساعة' : 'تم التبديل إلى نظام ٢٤ ساعة');
+  const onImamListChange = (nextList) => {
+    const names = Array.isArray(nextList) ? nextList : [];
+    const current = (config.imamName || '').trim();
+    const patch = { imamList: names };
+    if (current && !names.includes(current)) {
+      patch.imamName = names[0] || '';
+    }
+    return apply(patch, 'info', 'قائمة الأئمة محفوظة');
+  };
+  const onCurrentImam = (name) => apply({ imamName: name }, 'info', 'تم اختيار الإمام الحالي');
   const onAdjustment = (prayer, minutes) => apply(
     { adjustmentsMinutes: { ...(config.adjustmentsMinutes || {}), [prayer]: Number(minutes) } },
     'info',
@@ -1042,7 +1052,9 @@ export default function SettingsOverlay() {
             >
               <ImamListEditor
                 list={Array.isArray(config.imamList) ? config.imamList : []}
-                onChange={(nextList) => apply({ imamList: nextList }, 'info', 'قائمة الأئمة محفوظة')}
+                currentName={config.imamName || ''}
+                onChange={onImamListChange}
+                onSelectCurrent={onCurrentImam}
               />
             </Field>
 

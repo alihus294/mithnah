@@ -6,7 +6,7 @@
 //   idle         → null (no visible chrome)
 //   checking     → null (brief, not worth flashing)
 //   downloading  → "جاري تحميل التحديث N%"
-//   ready        → "تحديث جاهز — أعد التشغيل" (clickable → quitAndInstall via restart prompt)
+//   ready        → "يوجد تحديث" (installer runs from the Settings update panel or on quit)
 //   error        → null (errors surface in devtools / are retried)
 //
 // The dialog prompt in main/updater/index.js still fires for the
@@ -60,7 +60,7 @@ export default function UpdateBadge() {
     return (
       <div className="update-badge update-badge--ready" role="status" aria-live="polite" dir="rtl">
         <span className="update-badge__dot update-badge__dot--pulse" aria-hidden="true" />
-        <span className="update-badge__label">تحديث جاهز{version} — سيُثبَّت عند الإغلاق</span>
+        <span className="update-badge__label">يوجد تحديث{version} — سيُثبَّت عند الإغلاق</span>
       </div>
     );
   }

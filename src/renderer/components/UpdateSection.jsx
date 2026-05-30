@@ -23,6 +23,7 @@ export default function UpdateSection() {
   const [info, setInfo] = useState(null);
   const [message, setMessage] = useState('');
   const [appVersion, setAppVersion] = useState('');
+  const [manualStatus, setManualStatus] = useState('');
 
   // Pull the installed app version once — shown next to the button so
   // the caretaker can read it aloud if they ever need support.
@@ -49,6 +50,9 @@ export default function UpdateSection() {
       if (cancelled || !payload) return;
       setState(payload.state || 'idle');
       setInfo(payload.info || null);
+      if (['checking', 'downloading', 'ready', 'error'].includes(payload.state)) {
+        setManualStatus('');
+      }
       // Clear any stale "up-to-date" message once a new check starts.
       if (payload.state === 'checking' || payload.state === 'downloading') {
         setMessage('');
@@ -59,14 +63,22 @@ export default function UpdateSection() {
 
   async function onCheck() {
     setMessage('');
+    setManualStatus('');
+    setState('checking');
     try {
       const res = await window.electron.updater.checkNow();
       if (!res || res.ok !== true) {
+        setState('error');
         setMessage(res?.error || 'تعذّر الفحص — تحقّق من الاتصال بالإنترنت ثم أعد المحاولة');
         return;
       }
       if (!res.updateAvailable) {
-        setMessage(`أنت على آخر إصدار${appVersion ? ` (${appVersion})` : ''} — لا يوجد تحديث جديد`);
+        setState('idle');
+        setInfo(null);
+        setManualStatus('upToDate');
+        setMessage('');
+      } else {
+        setManualStatus('available');
       }
       // If an update IS available, the updater's event stream flips
       // the state to 'downloading' → 'ready' on its own; no need to
@@ -77,25 +89,56 @@ export default function UpdateSection() {
   }
 
   async function onRestart() {
+    setManualStatus('installing');
+    setMessage('');
     try {
       const res = await window.electron.app.restartAndInstall?.();
       if (res && res.ok === false) {
+        setManualStatus('');
         setMessage(res.error || 'تعذّرت إعادة التشغيل — حاول إغلاق التطبيق يدوياً');
       }
       // On success the process quits, no further UI work to do.
     } catch (err) {
+      setManualStatus('');
       setMessage(friendlyErrorTitle(err));
     }
   }
 
-  const busy = state === 'checking' || state === 'downloading';
-  const ready = state === 'ready';
   const percent = Number.isFinite(info?.percent) ? Math.round(info.percent) : null;
+  const installing = manualStatus === 'installing';
+  const busy = installing || state === 'checking' || state === 'downloading';
+  const ready = state === 'ready';
+
+  let statusText = 'اضغط للفحص';
+  let statusKind = 'idle';
+  if (installing) {
+    statusText = 'جاري التثبيت';
+    statusKind = 'busy';
+  } else if (state === 'checking') {
+    statusText = 'جاري الفحص';
+    statusKind = 'busy';
+  } else if (state === 'downloading') {
+    statusText = percent !== null
+      ? `جاري تحميل التحديث · ${toArabicDigits(percent)}٪`
+      : 'جاري تحميل التحديث';
+    statusKind = 'busy';
+  } else if (ready || manualStatus === 'available') {
+    statusText = 'يوجد تحديث';
+    statusKind = 'ready';
+  } else if (manualStatus === 'upToDate') {
+    statusText = 'التطبيق محدث';
+    statusKind = 'ok';
+  } else if (state === 'error') {
+    statusText = 'تعذّر الفحص';
+    statusKind = 'err';
+  }
 
   let label;
-  if (state === 'checking')       label = '... جاري الفحص';
-  else if (state === 'downloading') label = percent !== null ? `جاري التنزيل · ${toArabicDigits(percent)}٪` : 'جاري التنزيل...';
-  else if (ready)                  label = `إعادة تشغيل الآن وتثبيت ${info?.version || ''}`.trim();
+  if (installing)                 label = 'جاري التثبيت';
+  else if (state === 'checking')  label = 'جاري الفحص';
+  else if (state === 'downloading') label = statusText;
+  else if (ready)                 label = `تثبيت التحديث ${info?.version || ''}`.trim();
+  else if (manualStatus === 'upToDate') label = 'افحص مرة أخرى';
   else                             label = 'افحص الآن';
 
   return (
@@ -110,6 +153,10 @@ export default function UpdateSection() {
       <div className="settings__update-hint">
         يفحص التطبيق تلقائياً عند التشغيل، ثمّ كلّ يوم في منتصف الليل. إذا انقطع الاتصال يُعيد المحاولة كلّ دقيقتين
         ليلتقط عودة الشبكة فوراً. التنزيل يحدث في الخلفية بدون مقاطعة المصلّين. اضغط هنا للفحص يدوياً الآن.
+      </div>
+
+      <div className={`settings__update-status settings__update-status--${statusKind}`} role="status" aria-live="polite">
+        {statusText}
       </div>
 
       <button

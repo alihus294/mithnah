@@ -13,6 +13,7 @@ const hijriIpc = require('./hijri/ipc');
 const locationIpc = require('./location/ipc');
 const shiaContentIpc = require('./shia-content/ipc');
 const slideshowIpc = require('./slideshow/ipc');
+const slideshow = require('./slideshow');
 const updaterIpc = require('./updater/ipc');
 const bridgeIpc = require('./bridge/ipc');
 const marjaIpc = require('./marja/ipc');
@@ -21,6 +22,26 @@ const marjaIpc = require('./marja/ipc');
 
 let isQuitting = false;
 let deps = null;
+let unsubscribeSlideshow = null;
+
+function sendSlideshowState(state) {
+  const win = deps && typeof deps.getMainWindow === 'function' ? deps.getMainWindow() : null;
+  if (!win || (typeof win.isDestroyed === 'function' && win.isDestroyed())) return;
+  const wc = win.webContents;
+  if (!wc || (typeof wc.isDestroyed === 'function' && wc.isDestroyed())) return;
+  wc.send('slideshow:state', state);
+}
+
+function wireSlideshowStateToWindow(win) {
+  if (!unsubscribeSlideshow) {
+    unsubscribeSlideshow = slideshow.subscribe((state) => sendSlideshowState(state));
+  }
+  const sendInitial = () => sendSlideshowState(slideshow.getState());
+  if (win && win.webContents && typeof win.webContents.once === 'function') {
+    win.webContents.once('did-finish-load', sendInitial);
+  }
+  setTimeout(sendInitial, 250);
+}
 
 // ── Init ───────────────────────────────────────────────────────────────────
 
@@ -83,6 +104,7 @@ function initLifecycle(lifecycleDeps) {
       }
 
       const win = await deps.createWindow();
+      wireSlideshowStateToWindow(win);
 
       // Start remote control server
       try {
@@ -125,7 +147,7 @@ function initLifecycle(lifecycleDeps) {
   app.on('activate', () => {
     const win = deps.getMainWindow();
     if (!win || win.isDestroyed()) {
-      deps.createWindow().catch(() => {});
+      deps.createWindow().then((created) => wireSlideshowStateToWindow(created)).catch(() => {});
     }
   });
 }
@@ -140,6 +162,11 @@ async function gracefulShutdown() {
   }
 
   try { deps.autoContent.stop(); } catch (_) {}
+
+  if (typeof unsubscribeSlideshow === 'function') {
+    try { unsubscribeSlideshow(); } catch (_) {}
+    unsubscribeSlideshow = null;
+  }
 }
 
 function getIsQuitting() {

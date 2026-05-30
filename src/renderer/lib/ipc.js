@@ -144,6 +144,11 @@ export async function hijriToday(opts) {
   return unwrap(resp, 'hijri:today');
 }
 
+export async function getSlideshowState() {
+  const resp = await e().slideshow.getState();
+  return unwrap(resp, 'slideshow:get-state');
+}
+
 export async function getRemoteStatus() {
   return await e().remoteControl.getStatus();
 }
@@ -223,7 +228,9 @@ export async function searchPlaces(payload) {
 }
 
 export function onSlideshowState(cb) {
-  return e().slideshow.onState(cb);
+  const api = window.electron?.slideshow;
+  if (!api || typeof api.onState !== 'function') return () => {};
+  return api.onState(cb);
 }
 
 // Dual subscription: the IPC broadcast from main (authoritative, fires
@@ -232,7 +239,10 @@ export function onSlideshowState(cb) {
 // if the IPC chain is briefly slow). Consumers get at most one call
 // per actual change because React batches the resulting setState.
 export function onConfigChanged(cb) {
-  const offIpc = e().prayerTimes.onConfigChanged(cb);
+  const api = window.electron?.prayerTimes;
+  const offIpc = api && typeof api.onConfigChanged === 'function'
+    ? api.onConfigChanged(cb)
+    : null;
   const onWin = (ev) => cb(ev.detail);
   window.addEventListener('mithnah:config-changed', onWin);
   return () => {

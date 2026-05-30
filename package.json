@@ -63,6 +63,7 @@
     ],
     "win": {
       "icon": "src/public/icon.ico",
+      "signAndEditExecutable": false,
       "target": [
         {
           "target": "nsis",

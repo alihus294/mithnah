@@ -13,7 +13,7 @@ import FirstRunTour from './components/FirstRunTour.jsx';
 import UndoToast from './components/UndoToast.jsx';
 import ErrorToast from './components/ErrorToast.jsx';
 import PairingModal from './components/PairingModal.jsx';
-import { onSlideshowState } from './lib/ipc.js';
+import { getSlideshowState, onSlideshowState } from './lib/ipc.js';
 
 // Each overlay gets its own ErrorBoundary so a crash inside one (e.g. a
 // bad hook call in SettingsOverlay) doesn't take down the Dashboard or
@@ -24,8 +24,22 @@ export default function App() {
   const [slideshow, setSlideshow] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = onSlideshowState((state) => setSlideshow(state));
-    return () => { if (typeof unsubscribe === 'function') unsubscribe(); };
+    let cancelled = false;
+    let unsubscribe = null;
+    try {
+      unsubscribe = onSlideshowState((state) => {
+        if (!cancelled) setSlideshow(state);
+      });
+      getSlideshowState()
+        .then((state) => { if (!cancelled) setSlideshow(state); })
+        .catch(() => {});
+    } catch (_) {
+      // Vite-only previews do not provide the Electron preload API.
+    }
+    return () => {
+      cancelled = true;
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, []);
 
   return (

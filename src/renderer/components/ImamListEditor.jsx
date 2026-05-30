@@ -9,37 +9,56 @@
 
 import { useState } from 'react';
 
-export default function ImamListEditor({ list, currentName, onChange }) {
+export default function ImamListEditor({ list, currentName = '', onChange, onSelectCurrent }) {
   const [newName, setNewName] = useState('');
+  const names = Array.isArray(list) ? list : [];
 
   const trySubmit = () => {
     const s = newName.trim().slice(0, 120);
     if (!s) return;
     // Dedupe case-insensitively — prevents "الشيخ علي" and "الشيخ علي "
     // (trailing space) from spawning separate rows.
-    const exists = list.some((n) => n.trim().toLowerCase() === s.toLowerCase());
+    const exists = names.some((n) => n.trim().toLowerCase() === s.toLowerCase());
     if (exists) { setNewName(''); return; }
-    if (list.length >= 40) return; // matches the coerce cap in prayer-times/config
-    onChange([...list, s]);
+    if (names.length >= 40) return; // matches the coerce cap in prayer-times/config
+    onChange([...names, s]);
     setNewName('');
   };
 
   const removeAt = (idx) => {
-    const next = list.slice();
+    const next = names.slice();
     next.splice(idx, 1);
     onChange(next);
   };
 
   return (
     <div className="imam-list-editor">
-      {list.length === 0 && (
+      {names.length === 0 && (
         <div className="settings__hint imam-list-editor__empty">
           لا يوجد أئمة محفوظون بعد. أضف اسماً أدناه — ستظهر قائمة الاختيار في F5 بعد أوّل إدخال.
         </div>
       )}
-      {list.length > 0 && (
+      {names.length > 0 && (
+        <div className="imam-list-editor__picker">
+          <label className="imam-list-editor__picker-label" htmlFor="imam-current-select">
+            الإمام الحالي
+          </label>
+          <select
+            id="imam-current-select"
+            className="settings__select imam-list-editor__select"
+            value={names.includes(currentName) ? currentName : ''}
+            onChange={(e) => onSelectCurrent?.(e.target.value)}
+          >
+            <option value="">اختر من قائمة الأئمة</option>
+            {names.map((name, i) => (
+              <option key={name + ':select:' + i} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      {names.length > 0 && (
         <ul className="imam-list-editor__list">
-          {list.map((name, i) => {
+          {names.map((name, i) => {
             const isCurrent = name === currentName;
             return (
               <li key={name + ':' + i} className="imam-list-editor__row">
@@ -76,8 +95,8 @@ export default function ImamListEditor({ list, currentName, onChange }) {
           type="button"
           className="settings__btn imam-list-editor__add-btn"
           onClick={trySubmit}
-          disabled={!newName.trim() || list.length >= 40}
-          title={list.length >= 40 ? 'وصلت للحد الأقصى ٤٠ اسماً' : 'إضافة'}
+          disabled={!newName.trim() || names.length >= 40}
+          title={names.length >= 40 ? 'وصلت للحد الأقصى ٤٠ اسماً' : 'إضافة'}
         >
           ➕ إضافة
         </button>

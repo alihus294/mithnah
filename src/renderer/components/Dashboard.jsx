@@ -84,7 +84,11 @@ function useHijri() {
     let cancelled = false;
     async function load() {
       try {
-        const d = await hijriToday();
+        const cfg = await getConfig();
+        const d = await hijriToday({
+          calendarId: cfg?.calendar || 'jafari',
+          dayOffset: Number(cfg?.calendarDayOffset) || 0
+        });
         if (cancelled) return;
         setH(d);
         if (failedRef.current) { failedRef.current = false; reportIpcRecovered(); }
@@ -167,8 +171,13 @@ function useTodayEvents() {
     // sundown, so we need a faster cadence than the 1-hour default to
     // catch the transition without a full day's lag. Still cheap: it's a
     // local IPC call returning <1 KB of JSON.
+    const off = onConfigChanged(() => load());
     const id = setInterval(load, 10 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      if (typeof off === 'function') off();
+    };
   }, []);
   // Cycle through today's events if multiple (rare — typically ≤1).
   useEffect(() => {

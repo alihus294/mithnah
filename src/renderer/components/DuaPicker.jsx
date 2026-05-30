@@ -190,7 +190,11 @@ async function loadTab(tab) {
 
 async function openDeck(kind, id) {
   const el = ipc();
-  await el.slideshow.openShia(kind, id);
+  const resp = await el.slideshow.openShia(kind, id);
+  if (!resp?.ok) {
+    throw new Error(resp?.error || 'تعذّر فتح المحتوى');
+  }
+  return resp.data;
 }
 
 // Approximate text-page count surfaced on each card so the operator
@@ -1027,4 +1031,3 @@ function CustomDuaEditor({ initial, tab, onCancel, onSave }) {
     </div>
   );
 }
-
