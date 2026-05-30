@@ -34,7 +34,7 @@ describe('integration: module wiring', () => {
     // Verify DI object structure
     assert(content.includes('lifecycle.initLifecycle({'), 'index.js should call initLifecycle');
     assert(content.includes('initIpcHandlers({'), 'index.js should call initIpcHandlers');
-    assert(content.includes('mainWindow: () => mainWindow'), 'index.js should pass mainWindow getter');
+    assert(content.includes('mainWindow: getMainWindow'), 'index.js should pass mainWindow getter');
     assert(content.includes('createWindow'), 'index.js should pass createWindow');
     assert(content.includes('loadSettings'), 'index.js should pass loadSettings');
   });
