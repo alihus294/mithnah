@@ -106,7 +106,7 @@ async function startRemoteControlServer() {
 
   // Health check
   remoteControlApp.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', version: require('../package.json').version });
+    res.json({ status: 'ok', version: require('../../package.json').version });
   });
 
   // State endpoint

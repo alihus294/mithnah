@@ -62,6 +62,7 @@
       "!docs/**/*"
     ],
     "win": {
+      "icon": "src/public/icon.ico",
       "target": [
         {
           "target": "nsis",
