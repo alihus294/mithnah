@@ -80,8 +80,6 @@ const FEATURE_GROUPS = [
     title: 'عناصر العرض',
     items: [
       { key: 'announcementBanner', label: 'شريط الإعلانات أعلى الشاشة' },
-      { key: 'ramadanCountdown',   label: 'العدّ التنازلي للإفطار في رمضان' },
-      { key: 'qiblaDisplay',       label: 'عرض اتجاه القبلة والمسافة إلى مكة' },
     ],
   },
   {
@@ -612,8 +610,6 @@ export default function SettingsOverlay() {
 
   const onSupportContact = (e) => { dirtyRef.current = true; setCfg({ ...config, supportContact: e.target.value }); };
   const commitSupportContact = () => { dirtyRef.current = false; apply({ supportContact: config.supportContact || '' }, 'info', 'بيانات الدعم محفوظة'); };
-  const onImamName = (e) => { dirtyRef.current = true; setCfg({ ...config, imamName: e.target.value }); };
-  const commitImamName = () => { dirtyRef.current = false; apply({ imamName: config.imamName || '' }, 'info', 'اسم الإمام محفوظ'); };
 
   // (undo-stack refresh useEffect moved to the top of the component
   //  with the other hooks — declaring it here, AFTER the two early
@@ -998,12 +994,6 @@ export default function SettingsOverlay() {
             )}
             {tab !== 'basics' && (
               <div className="settings__summary-row">
-                <span className="settings__summary-key">الإمام</span>
-                <span className="settings__summary-val">{config.imamName || '—'}</span>
-              </div>
-            )}
-            {tab !== 'location' && (
-              <div className="settings__summary-row">
                 <span className="settings__summary-key">الموقع</span>
                 <span className="settings__summary-val">{loc.name || '—'}</span>
               </div>
@@ -1046,24 +1036,12 @@ export default function SettingsOverlay() {
               <LogoField />
             </Field>
 
-            <Field label="اسم الإمام الحالي" hint="يظهر في شاشة متابعة الصلاة (F5) ليعرف الجمهور من يصلّي بهم.">
-              <input
-                type="text" className="settings__input"
-                value={config.imamName || ''}
-                onChange={onImamName}
-                onBlur={commitImamName}
-                maxLength={120}
-                placeholder="مثال: الشيخ محمد البوعلي"
-              />
-            </Field>
-
             <Field
               label="قائمة الأئمة"
               hint="أضف الأئمة الذين يتناوبون على الإمامة في المسجد. ستظهر قائمة منسدلة داخل متابعة الصلاة (F5) لاختيار الإمام الحاضر فوراً بدون كتابة اسمه في كلّ صلاة."
             >
               <ImamListEditor
                 list={Array.isArray(config.imamList) ? config.imamList : []}
-                currentName={config.imamName || ''}
                 onChange={(nextList) => apply({ imamList: nextList }, 'info', 'قائمة الأئمة محفوظة')}
               />
             </Field>

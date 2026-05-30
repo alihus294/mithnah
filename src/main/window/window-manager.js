@@ -34,10 +34,7 @@ function createWindow() {
 
   mainWindow = new BrowserWindow({
     title: 'Mithnah',
-    width: Math.min(1200, screenWidth),
-    height: Math.min(800, screenHeight),
-    minWidth: 1024,
-    minHeight: 768,
+    fullscreen: true,
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,

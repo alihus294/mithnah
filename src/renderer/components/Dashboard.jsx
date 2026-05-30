@@ -17,7 +17,7 @@ import {
   TileBand, SalawatLine, StarPatternBg
 } from './Ornaments.jsx';
 import {
-  AnnouncementBanner, RamadanCountdown, QiblaBadge
+  AnnouncementBanner
 } from './DashboardFeatures.jsx';
 
 function useClock() {
@@ -396,13 +396,12 @@ export default function Dashboard() {
   return (
     <div className={`dashboard ${bannerActive ? 'dashboard--with-banner' : ''}`} dir="rtl">
       <StarPatternBg opacity={0.05} />
-      {featureOn('announcementBanner', false) && (
+      {featureOn('announcementBanner', true) && (
         <AnnouncementBanner
           text={config?.announcementText}
           autoHideSeconds={Number(config?.announcementAutoHideSeconds) || 0}
         />
       )}
-      {featureOn('qiblaDisplay', true) && <QiblaBadge />}
       {/* InfalliblesRotator retired 2026-04-23 per operator request —
           the 14-name rotator competed with the prayer cells for
           attention and offered no actionable information. Feature
@@ -511,11 +510,6 @@ export default function Dashboard() {
         {/* ZONE 4 — prayer row + salawat */}
         <footer className="dashboard__footer">
           <TileBand height={14} opacity={0.35} />
-          {featureOn('ramadanCountdown', true) && (
-            <div style={{ textAlign: 'center' }}>
-              <RamadanCountdown hijriEffective={hijriEffective} todayPrayerTimes={today} now={now} />
-            </div>
-          )}
           {/* FridayKhutbahTimer retired 2026-04-23 — the countdown to
               the Friday khutbah is interesting for ~90 minutes once a
               week and purely noise otherwise. The dashboard's

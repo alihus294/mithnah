@@ -126,6 +126,34 @@ export default function UpdateSection() {
           {message}
         </div>
       )}
+
+      {state === 'downloading' && percent !== null && (
+        <div className="settings__update-progress" style={{ marginTop: 12 }}>
+          <div className="settings__update-progress-track" style={{
+            width: '100%',
+            height: 8,
+            background: '#e5e7eb',
+            borderRadius: 4,
+            overflow: 'hidden'
+          }}>
+            <div className="settings__update-progress-fill" style={{
+              width: `${percent}%`,
+              height: '100%',
+              background: '#10b981',
+              borderRadius: 4,
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+          <div className="settings__update-progress-text" style={{
+            textAlign: 'center',
+            marginTop: 6,
+            fontSize: 14,
+            color: '#6b7280'
+          }}>
+            {toArabicDigits(percent)}٪ مكتمل
+          </div>
+        </div>
+      )}
     </div>
   );
 }

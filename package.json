@@ -85,7 +85,8 @@
     },
     "asar": true,
     "asarUnpack": [
-      "src/public/icon.ico"
+      "src/public/icon.ico",
+      "src/main/shia-content/data/**/*"
     ],
     "publish": [
       {

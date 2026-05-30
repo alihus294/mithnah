@@ -3,8 +3,7 @@
 // separate file so Dashboard.jsx remains legible.
 
 import { useEffect, useState } from 'react';
-import { toArabicDigits, formatCountdown, PRAYER_NAMES_AR } from '../lib/format.js';
-import { getQibla } from '../lib/ipc.js';
+import { toArabicDigits } from '../lib/format.js';
 
 // --- Announcement banner ---------------------------------------------------
 //
@@ -83,59 +82,10 @@ export function AnnouncementBanner({ text, autoHideSeconds = 0 }) {
   );
 }
 
-// --- Ramadan countdown -----------------------------------------------------
-
-// Shown only when the effective (maghrib-pivoted) Hijri month is 9, and
-// we are still before today's maghrib. After maghrib the effective Hijri
-// day has already rolled forward, so the countdown disappears naturally.
-export function RamadanCountdown({ hijriEffective, todayPrayerTimes, now }) {
-  if (!hijriEffective || hijriEffective.month !== 9) return null;
-  const maghrib = todayPrayerTimes?.timesIso?.maghrib;
-  if (!maghrib) return null;
-  const maghribMs = new Date(maghrib).getTime();
-  if (!Number.isFinite(maghribMs)) return null;
-  if (now.getTime() >= maghribMs) return null; // iftar passed for today
-  return (
-    <div className="countdown-ribbon">
-      <span className="countdown-ribbon__label">الإفطار بعد</span>
-      <span>{formatCountdown(maghrib, now.getTime())}</span>
-    </div>
-  );
-}
-
 // FridayKhutbahTimer retired 2026-04-23 — the pre-khutbah countdown was
 // only informative for ~90 minutes on Fridays and noise the rest of the
 // week. The dashboard's upcoming-event strip already surfaces Jumu'ah
 // on the day itself.
-
-// --- Qibla badge -----------------------------------------------------------
-
-export function QiblaBadge() {
-  const [qibla, setQibla] = useState(null);
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const q = await getQibla();
-        if (!cancelled) setQibla(q);
-      } catch (_) { /* silent */ }
-    }
-    load();
-    // Location rarely changes; re-query every 10 min in case the caretaker
-    // updated coords via F3 settings.
-    const id = setInterval(load, 10 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(id); };
-  }, []);
-  if (!qibla || !Number.isFinite(qibla.bearingDeg)) return null;
-  const deg = Math.round(qibla.bearingDeg);
-  const km = Math.round(qibla.distanceKm);
-  return (
-    <div className="qibla-badge" aria-label={`اتجاه القبلة ${deg} درجة، ${km} كيلومتر`}>
-      <span className="qibla-badge__arrow" style={{ transform: `rotate(${deg}deg)` }}>↑</span>
-      <span>القبلة · {toArabicDigits(deg)}° · {toArabicDigits(km)} كم</span>
-    </div>
-  );
-}
 
 // InfalliblesRotator retired 2026-04-23 — the rotating 14-name strip
 // added no actionable signal and pushed the prayer cells around. Kept
