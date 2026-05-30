@@ -379,6 +379,21 @@ async function stopRemoteControlServer() {
   emitRemoteControlStatus();
 }
 
+function clearAllTimers() {
+  if (remoteSessionCleanupTimer) {
+    clearInterval(remoteSessionCleanupTimer);
+    remoteSessionCleanupTimer = null;
+  }
+  if (pinFailuresSweeper) {
+    clearInterval(pinFailuresSweeper);
+    pinFailuresSweeper = null;
+  }
+  if (ipRefreshTimer) {
+    clearInterval(ipRefreshTimer);
+    ipRefreshTimer = null;
+  }
+}
+
 // --- Module API ---
 
 function initRemoteServer(deps) {
@@ -413,5 +428,10 @@ module.exports = {
   getState: () => ({ ...remoteControlState }),
   getServer: () => remoteHttpServer,
   getSocketServer: () => remoteSocketServer,
-  getSessionTokens: () => remoteSessionTokens
+  getSessionTokens: () => remoteSessionTokens,
+  pruneExpiredRemoteSessions: () => pruneExpiredRemoteSessions(),
+  clearAllTimers,
+  setIpRefreshTimer: (t) => { ipRefreshTimer = t; },
+  setRemoteSessionCleanupTimer: (t) => { remoteSessionCleanupTimer = t; },
+  setPinFailuresSweeper: (t) => { pinFailuresSweeper = t; }
 };

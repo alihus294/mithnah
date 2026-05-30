@@ -147,18 +147,6 @@ const REMOTE_COMMAND_SET = new Set([
   'SET_APP_ZOOM'
 ]);
 
-let remoteHttpServer = null;
-let remoteSocketServer = null;
-let remoteSessionCleanupTimer = null;
-let pinFailuresSweeper = null;
-// IP-change watcher: polls network interfaces and regenerates the QR +
-// URL when the preferred LAN address changes. Without this the phone
-// pairing card shows a stale IP whenever the caretaker joins a new
-// Wi-Fi after the app started, and the only workaround was to quit
-// and relaunch Mithnah.
-let ipRefreshTimer = null;
-const remoteSessionTokens = new Map();
-
 // --- ZOOM STATE MANAGEMENT ---
 let zoomState = {
   factor: 1.0,
@@ -167,15 +155,6 @@ let zoomState = {
 
 let saveSettingsTimer = null;
 
-const remoteControlState = {
-  running: false,
-  ipAddress: '127.0.0.1',
-  port: MOBILE_CONTROL_PORT,
-  url: `http://127.0.0.1:${MOBILE_CONTROL_PORT}`,
-  qrCodeDataUrl: null,
-  pin: MOBILE_CONTROL_PIN,
-  clientCount: 0
-};
 let remoteRendererState = {
   updatedAt: 0
 };
@@ -296,7 +275,8 @@ function setGlobalZoom(factor, isAuto = false) {
   // Apply to ALL windows (Main + Children)
   BrowserWindow.getAllWindows().forEach(applyZoom);
 
-  if (remoteSocketServer) {
+  const socket = remoteServer.getSocketServer();
+  if (socket) {
     remoteRendererState = {
       ...remoteRendererState,
       zoom: {
@@ -305,7 +285,7 @@ function setGlobalZoom(factor, isAuto = false) {
       },
       updatedAt: Date.now()
     };
-    remoteSocketServer.emit('state', remoteRendererState);
+    socket.emit('state', remoteRendererState);
   }
 }
 
@@ -381,12 +361,7 @@ function getRemoteControlStaticRoot() {
 }
 
 function pruneExpiredRemoteSessions() {
-  const now = Date.now();
-  for (const [token, expiresAt] of remoteSessionTokens.entries()) {
-    if (expiresAt <= now) {
-      remoteSessionTokens.delete(token);
-    }
-  }
+  remoteServer.pruneExpiredRemoteSessions();
 }
 
 // Max simultaneous valid sessions — anything beyond this is almost
@@ -395,40 +370,32 @@ function pruneExpiredRemoteSessions() {
 const MAX_ACTIVE_SESSIONS = 500;
 
 function createRemoteSessionToken() {
-  pruneExpiredRemoteSessions();
-  // Bound the map — if a flood of logins tries to exhaust memory, drop
-  // the oldest (Map preserves insertion order).
-  while (remoteSessionTokens.size >= MAX_ACTIVE_SESSIONS) {
-    const oldest = remoteSessionTokens.keys().next().value;
+  remoteServer.pruneExpiredRemoteSessions();
+  const tokens = remoteServer.getSessionTokens();
+  while (tokens.size >= MAX_ACTIVE_SESSIONS) {
+    const oldest = tokens.keys().next().value;
     if (oldest === undefined) break;
-    remoteSessionTokens.delete(oldest);
+    tokens.delete(oldest);
   }
   const token = crypto.randomBytes(24).toString('hex');
-  remoteSessionTokens.set(token, Date.now() + REMOTE_SESSION_TTL_MS);
+  tokens.set(token, Date.now() + REMOTE_SESSION_TTL_MS);
   return token;
 }
 
 function isValidRemoteSessionToken(token) {
   if (typeof token !== 'string' || !token) return false;
-  const expiresAt = remoteSessionTokens.get(token);
+  const tokens = remoteServer.getSessionTokens();
+  const expiresAt = tokens.get(token);
   if (!expiresAt) return false;
   if (expiresAt <= Date.now()) {
-    remoteSessionTokens.delete(token);
+    tokens.delete(token);
     return false;
   }
   return true;
 }
 
 function getRemoteControlStatusPayload() {
-  return {
-    running: remoteControlState.running,
-    ipAddress: remoteControlState.ipAddress,
-    port: remoteControlState.port,
-    url: remoteControlState.url,
-    qrCodeDataUrl: remoteControlState.qrCodeDataUrl,
-    pin: remoteControlState.pin,
-    clientCount: remoteControlState.clientCount
-  };
+  return remoteServer.getState();
 }
 
 function emitRemoteControlStatus() {
@@ -455,11 +422,6 @@ function getRemoteRendererStatePayload() {
 
 function setRemoteRendererState(nextState) {
   if (!nextState || typeof nextState !== 'object' || Array.isArray(nextState)) return;
-  // Shallow merge across publishers so independent renderer slices
-  // (modalActive from useModalActive, slideshow from SlideshowOverlay,
-  // future ones) don't clobber each other on every publish. Earlier
-  // semantics replaced wholesale, which meant the last publisher won
-  // and any prior slice was silently erased on the next emit.
   remoteRendererState = {
     ...remoteRendererState,
     ...nextState,
@@ -470,8 +432,9 @@ function setRemoteRendererState(nextState) {
     updatedAt: Date.now()
   };
 
-  if (remoteSocketServer) {
-    remoteSocketServer.emit('state', remoteRendererState);
+  const socket = remoteServer.getSocketServer();
+  if (socket) {
+    socket.emit('state', remoteRendererState);
   }
 }
 
@@ -524,7 +487,7 @@ initIpcHandlers({
   setGlobalZoom,
   getSmartZoomFactor,
   getRemoteControlStatusPayload,
-  remoteSocketServer: () => remoteSocketServer,
+  remoteSocketServer: () => remoteServer.getSocketServer(),
   setRemoteRendererState,
   networkCapabilities,
   prayerTimes,
@@ -532,6 +495,32 @@ initIpcHandlers({
   configPathOf,
   USER_DATA_PATH,
   updater
+});
+
+// Initialize remote-server module with all dependencies before lifecycle
+remoteServer.initRemoteServer({
+  mainWindow: getMainWindow,
+  slideshow,
+  prayerTimes,
+  remoteRendererState,
+  kioskQuitRequested: () => lifecycle.getIsQuitting(),
+  MOBILE_CONTROL_PORT,
+  MOBILE_CONTROL_PIN,
+  PROJECT_ROOT,
+  IS_DEV,
+  RENDERER_DEV_URL,
+  getLanIPv4Addresses,
+  getPreferredLanIPv4Address,
+  getRemoteControlStaticRoot,
+  emitRemoteControlStatus,
+  emitRemoteControlCommand,
+  getRemoteRendererStatePayload,
+  normalizeRemoteCommandPayload,
+  pruneExpiredRemoteSessions,
+  adjustZoomStep,
+  getSmartZoomFactor,
+  setGlobalZoom,
+  applyZoom
 });
 
 lifecycle.initLifecycle({
@@ -542,23 +531,13 @@ lifecycle.initLifecycle({
   remoteServer,
   updater,
   autoContent,
-  getRemoteControlStatusPayload,
+  getRemoteControlStatusPayload: () => remoteServer.getState(),
   emitRemoteControlStatus,
   getLanIPv4Addresses,
   getPreferredLanIPv4Address,
-  remoteControlState,
-  remoteSocketServer: () => remoteSocketServer,
-  remoteHttpServer: () => remoteHttpServer,
-  ipRefreshTimer: () => ipRefreshTimer,
-  setIpRefreshTimer: (t) => { ipRefreshTimer = t; },
-  remoteSessionCleanupTimer: () => remoteSessionCleanupTimer,
-  setRemoteSessionCleanupTimer: (t) => { remoteSessionCleanupTimer = t; },
-  pinFailuresSweeper: () => pinFailuresSweeper,
-  setPinFailuresSweeper: (t) => { pinFailuresSweeper = t; },
-  MOBILE_CONTROL_PORT,
-  MOBILE_CONTROL_PIN,
-  QRCode,
   getRemoteControlStaticRoot,
   prayerTimesReady,
-  pruneExpiredRemoteSessions
+  MOBILE_CONTROL_PORT,
+  MOBILE_CONTROL_PIN,
+  QRCode
 });

@@ -101,31 +101,6 @@ function initLifecycle(lifecycleDeps) {
 
       deps.emitRemoteControlStatus();
 
-      // Set up IP refresh timer
-      const timer = setInterval(() => {
-        const addresses = deps.getLanIPv4Addresses();
-        const preferred = deps.getPreferredLanIPv4Address();
-        if (preferred !== deps.remoteControlState.ipAddress) {
-          deps.remoteControlState.ipAddress = preferred;
-          deps.remoteControlState.url = `http://${preferred}:${deps.MOBILE_CONTROL_PORT}`;
-          deps.QRCode.toDataURL(deps.remoteControlState.url, { width: 256, margin: 2 }).then((qr) => {
-            deps.remoteControlState.qrCodeDataUrl = qr;
-            deps.emitRemoteControlStatus();
-          }).catch(() => {});
-        }
-      }, 30000);
-      deps.setIpRefreshTimer(timer);
-
-      // Session cleanup timer
-      const cleanupTimer = setInterval(() => {
-        try {
-          if (typeof deps.pruneExpiredRemoteSessions === 'function') {
-            deps.pruneExpiredRemoteSessions();
-          }
-        } catch (_) {}
-      }, 600000);
-      deps.setRemoteSessionCleanupTimer(cleanupTimer);
-
     } catch (error) {
       console.error('[Mithnah] fatal init failure — exiting:', error);
       app.exit(1);
@@ -157,20 +132,6 @@ function initLifecycle(lifecycleDeps) {
 
 async function gracefulShutdown() {
   if (!deps) return;
-
-  const timers = [
-    deps.ipRefreshTimer(),
-    deps.remoteSessionCleanupTimer(),
-    deps.pinFailuresSweeper()
-  ];
-
-  for (const timer of timers) {
-    if (timer) clearInterval(timer);
-  }
-
-  deps.setIpRefreshTimer(null);
-  deps.setRemoteSessionCleanupTimer(null);
-  deps.setPinFailuresSweeper(null);
 
   try {
     await deps.remoteServer.stopRemoteControlServer();
