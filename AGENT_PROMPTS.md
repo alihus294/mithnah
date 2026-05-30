@@ -2,6 +2,7 @@
 
 > Open 4 Claude Code sessions in `C:\Users\Ali\Coding projects\mithnah\` and paste one prompt per session. Agents can run in parallel — files are partitioned so no two agents touch the same file.
 
+
 ---
 
 ## Agent A — main process + Settings overlay
