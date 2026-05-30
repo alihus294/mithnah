@@ -54,8 +54,9 @@ function initLifecycle(lifecycleDeps) {
     try {
       // Wait for prayer-times init before anything else
       if (deps.prayerTimesReady) {
-        try { await deps.prayerTimesReady; } catch (err) {
-          console.error('[Mithnah] prayer-times init failed — continuing with defaults:', err);
+        const ptResult = await deps.prayerTimesReady;
+        if (!ptResult.ok) {
+          console.error('[Mithnah] prayer-times init failed — continuing with defaults:', ptResult.error);
         }
       }
       await deps.loadSettings();

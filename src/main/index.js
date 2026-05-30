@@ -510,10 +510,12 @@ function normalizeRemoteCommandPayload(rawPayload) {
 
 // Initialize prayer-times module before registering IPC handlers
 // (async init — awaited during lifecycle startup)
-let prayerTimesReady = prayerTimes.init(USER_DATA_PATH).catch((err) => {
-  console.error('[Mithnah] prayer-times init failed:', err);
-  throw err;
-});
+let prayerTimesReady = prayerTimes.init(USER_DATA_PATH)
+  .then(() => ({ ok: true }))
+  .catch((err) => {
+    console.error('[Mithnah] prayer-times init failed:', err);
+    return { ok: false, error: err };
+  });
 
 initIpcHandlers({
   mainWindow: getMainWindow,
