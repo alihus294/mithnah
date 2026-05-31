@@ -203,6 +203,7 @@ function HonorifiedTitle({ title, honorific, starSize }) {
   if (!honorific) return <>{title}</>;
   return <>{title}<AlayhiSalam size={starSize} /></>;
 }
+const MemoHonorifiedTitle = React.memo(HonorifiedTitle);
 
 // Honorific detector — defined ONCE so the today-event and upcoming-
 // event branches can't drift. Earlier copies on lines 155 and 163
@@ -222,7 +223,7 @@ function EventStrip({ event, upcoming }) {
         <span className="event-strip__kind">{kind}</span>
         <span className="event-strip__sep" />
         <span className="event-strip__title">
-          <HonorifiedTitle title={title} honorific={honorific} starSize={14} />
+          <MemoHonorifiedTitle title={title} honorific={honorific} starSize={14} />
         </span>
       </div>
     );
@@ -248,7 +249,7 @@ function EventStrip({ event, upcoming }) {
         </div>
         <div className="event-strip__content">
           <div className="event-strip__title">
-            <HonorifiedTitle title={title} honorific={honorific} starSize={12} />
+            <MemoHonorifiedTitle title={title} honorific={honorific} starSize={12} />
           </div>
           <div className="event-strip__meta">
             {toArabicDigits(hijriDay)} {month}
@@ -259,6 +260,7 @@ function EventStrip({ event, upcoming }) {
   }
   return null;
 }
+const MemoEventStrip = React.memo(EventStrip);
 
 function PrayerCell({ prayerKey, name, time, active }) {
   return (
@@ -274,6 +276,7 @@ function PrayerCell({ prayerKey, name, time, active }) {
     </div>
   );
 }
+const MemoPrayerCell = React.memo(PrayerCell);
 
 // Kiosk-unlock state controller. Returns the modal-state pair so the
 // Dashboard can render an inline modal (native prompt/confirm are
@@ -332,6 +335,7 @@ export default function Dashboard() {
   const { event, upcoming, hijriEffective } = useTodayEvents();
   const [unlock, setUnlock] = useKioskUnlockGuard();
   const [unlockPin, setUnlockPin] = useState('');
+  const [clockSkew, setClockSkew] = useState(null);
   const logoSrc = useMosqueLogo();
   // D4-01/F-001 — trap focus inside the kiosk-unlock modal so Tab can't
   // reach the destructive "نعم، إيقاف" from outside, and Esc closes.
@@ -357,6 +361,7 @@ export default function Dashboard() {
   const occasion = occasionFor(event, config?.occasionOverride);
   const mosqueName = (config?.mosqueName || 'مئذنة').trim();
   const clockFmt = config?.clockFormat === '12' ? '12' : '24';
+  const isDefaultLocation = !config?.location?.name || config?.location?.name === 'النجف';
   // Features live on `config.features`; we default each to its "sensible
   // default" (matching defaults.js::defaultFeatures) so the UI is correct
   // while config is still loading.
@@ -366,6 +371,15 @@ export default function Dashboard() {
   useEffect(() => {
     document.documentElement.setAttribute('data-occasion', occasion);
   }, [occasion]);
+
+  // Clock-skew toast — pairs with A.7 main-process NTP check.
+  useEffect(() => {
+    if (!window.electron?.app?.onClockSkew) return;
+    const off = window.electron.app.onClockSkew((data) => {
+      if (data?.skewMs) setClockSkew(data);
+    });
+    return off;
+  }, []);
 
   // Toggle the html[data-large-text] selector when the operator
   // flips the largeText feature flag in F3. CSS does the actual
@@ -457,6 +471,11 @@ export default function Dashboard() {
           {config?.location?.name && (
             <div className="masthead__location">{config.location.name}</div>
           )}
+          {isDefaultLocation && (
+            <div className="masthead__default-loc-warn" role="alert">
+              📍 موقع افتراضي — اضغط F3 لضبط موقع مسجدك
+            </div>
+          )}
           {hijriText && (
             <div className="dashboard__dates">
               <div className="dashboard__hijri">{hijriText}</div>
@@ -513,7 +532,7 @@ export default function Dashboard() {
 
         {/* ZONE 3 — event strip */}
         <div className="dashboard__event-strip">
-          <EventStrip event={event} upcoming={upcoming} />
+          <MemoEventStrip event={event} upcoming={upcoming} />
         </div>
 
         {/* ZONE 4 — prayer row + salawat */}
@@ -529,7 +548,7 @@ export default function Dashboard() {
               {prayerOrder.map((key) => {
                 const iso = today.timesIso[key];
                 return (
-                  <PrayerCell
+                  <MemoPrayerCell
                     key={key}
                     prayerKey={key}
                     name={PRAYER_NAMES_AR[key]}
@@ -543,6 +562,23 @@ export default function Dashboard() {
           <SalawatLine size="md" style={{ marginTop: 6 }} />
         </footer>
       </div>
+
+      {/* Clock-skew warning toast — persists until dismissed */}
+      {clockSkew && (
+        <div className="clock-skew-toast" role="alert">
+          <div className="clock-skew-toast__text">
+            ساعة الجهاز {clockSkew.skewMs > 0 ? 'متقدّمة' : 'متأخّرة'} بـ{' '}
+            {toArabicDigits(Math.abs(Math.round(clockSkew.skewMs / 60000)))} دقيقة.
+            أوقات الصلاة قد تكون خاطئة — اضبط ساعة ويندوز.
+          </div>
+          <button
+            type="button"
+            className="clock-skew-toast__dismiss"
+            onClick={() => setClockSkew(null)}
+            aria-label="إخفاء التنبيه"
+          ></button>
+        </div>
+      )}
 
       {/* Kiosk-unlock modal — replaces native confirm()/prompt(). */}
       {unlock && (

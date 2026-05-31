@@ -76,9 +76,13 @@ async function checkClockSkew() {
         if (err) { clearTimeout(timeout); client.close(); reject(err); }
       });
     });
-    const skewMs = Math.abs(Date.now() - ntpTime.getTime());
-    if (skewMs > 5 * 60 * 1000) {
+    const skewMs = Date.now() - ntpTime.getTime();
+    if (Math.abs(skewMs) > 5 * 60 * 1000) {
       console.warn(`[Mithnah] CLOCK SKEW WARNING: system clock is off by ${Math.round(skewMs / 1000)}s — prayer times will be wrong`);
+      const win = getMainWindow();
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('app:clock-skew', { skewMs, thresholdMs: 5 * 60 * 1000 });
+      }
     } else {
       console.log(`[Mithnah] Clock skew OK: ${Math.round(skewMs / 1000)}s`);
     }

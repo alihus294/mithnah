@@ -1664,6 +1664,63 @@ html[data-large-text="true"] .dashboard__mosque-logo {
   opacity: 0.9;
 }
 
+/* Default-location warning badge — shown when the operator never set
+ * a location and the wall is still showing Najaf default times. */
+.masthead__default-loc-warn {
+  font-family: var(--m-font-body);
+  font-size: clamp(12px, 1vw, 18px);
+  color: #5c4b00;
+  background: #fff3cd;
+  border: 1px solid #e0c36e;
+  border-radius: var(--m-radius-md);
+  padding: 6px 14px;
+  margin-top: 4px;
+  text-align: center;
+  animation: fadeIn 300ms ease;
+}
+
+/* Clock-skew warning toast — pairs with A.7 main-process NTP check.
+ * Critical alert layer so it sits above every overlay except the
+ * inline modal. */
+.clock-skew-toast {
+  position: fixed;
+  top: clamp(18px, 2vh, 36px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--m-z-critical);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: #fff3cd;
+  border: 1px solid #e0c36e;
+  border-radius: var(--m-radius-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  animation: fadeIn 300ms ease;
+}
+.clock-skew-toast__text {
+  font-family: var(--m-font-body);
+  font-size: clamp(14px, 1.1vw, 20px);
+  color: #5c4b00;
+  white-space: nowrap;
+}
+.clock-skew-toast__dismiss {
+  width: 22px; height: 22px;
+  border: none; background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+.clock-skew-toast__dismiss::before,
+.clock-skew-toast__dismiss::after {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 14px; height: 2px;
+  background: #5c4b00;
+}
+.clock-skew-toast__dismiss::before { transform: translate(-50%, -50%) rotate(45deg); }
+.clock-skew-toast__dismiss::after  { transform: translate(-50%, -50%) rotate(-45deg); }
+
 /* ═════════════════════════════ Dua Picker overlay (F4) ══════════════════ */
 .dua-picker {
   position: fixed; inset: 0; z-index: var(--m-z-dua-picker);

@@ -129,7 +129,11 @@ function loadCustomForTab(tab) {
 function saveCustomForTab(tab, list) {
   const key = CUSTOM_KEYS[tab];
   if (!key) return;
-  localStorage.setItem(key, JSON.stringify(list.slice(0, CUSTOM_LIST_MAX)));
+  try {
+    localStorage.setItem(key, JSON.stringify(list.slice(0, CUSTOM_LIST_MAX)));
+  } catch (err) {
+    throw new Error('تجاوز حدّ التخزين — احذف بعض الأدعية المضافة قبل إضافة جديدة');
+  }
 }
 function loadAllCustom() {
   return {
