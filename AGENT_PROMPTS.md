@@ -3,6 +3,32 @@
 > Open 4 Claude Code sessions in `C:\Users\Ali\Coding projects\mithnah\` and paste one prompt per session. Agents can run in parallel — files are partitioned so no two agents touch the same file.
 
 
+
+
+---
+
+## Council Protocol (إلزامي لجميع الـ Agents)
+
+**قبل أي commit يصل لـ main، يجب المرور بمراجعة المجلس.**
+
+### الخطوات:
+1. اعمل commit محلياً
+2. ادفع للمراجعة:
+   ```bash
+   GIT_SSH_COMMAND="ssh -i $HOME/.ssh/council_push_key -o StrictHostKeyChecking=no"    git push ssh://council@127.0.0.1/home/council/repos/mithnah.git HEAD:refs/proposed/<agent>-<task-id>
+   ```
+3. انتظر رد المجلس:
+   - `COUNCIL_APPROVED` → main تقدمت، ادفع لـ origin
+   - `COUNCIL_REJECTED` → اقرأ السبب، صلّح، وأعد المحاولة (max 3)
+   - `COUNCIL_ESCALATE` → STOP، أخبر علي فوراً
+4. إذا رفض بسبب ملف لم تعدّله → STOP وأخبر علي مباشرة
+
+### قواعد:
+- لا تدفع مباشرة لـ `refs/heads/main`
+- الـ review يستخدم Opus للـ diffs الكبيرة، Sonnet للصغيرة
+- الـ key: `~/.ssh/council_push_key`
+
+
 ---
 
 ## Agent A — main process + Settings overlay
