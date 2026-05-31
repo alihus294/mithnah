@@ -34,12 +34,12 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "4.3.4",
+    "@vitejs/plugin-react": "^5.2.0",
     "concurrently": "8.2.2",
     "cross-env": "7.0.3",
     "electron": "28.3.3",
-    "electron-builder": "24.13.3",
-    "vite": "5.4.21"
+    "electron-builder": "^25.1.8",
+    "vite": "^7.3.3"
   },
   "build": {
     "appId": "app.mithnah.desktop",
