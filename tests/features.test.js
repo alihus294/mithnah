@@ -192,11 +192,11 @@ test('[pin] wrong PIN rejected', async () => {
   assert.strictEqual(await verifyPinAgainstHash('0000', stored), false);
 });
 
-test('[pin] rate limits after 8 failures within a window', async () => {
+test('[pin] rate limits after 5 failures within a window', async () => {
   const { makePinHash, verifyPinAgainstHash, resetPinRateLimit } = require('../src/main/app-features');
   resetPinRateLimit();
   const stored = makePinHash('9999');
-  for (let i = 0; i < 8; i++) await verifyPinAgainstHash('0000', stored);
+  for (let i = 0; i < 5; i++) await verifyPinAgainstHash('0000', stored);
   await assert.rejects(async () => verifyPinAgainstHash('0000', stored), /المحاولات|انتظر/);
 });
 

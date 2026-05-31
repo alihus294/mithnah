@@ -11,8 +11,8 @@ const path = require('path');
 // Rate-limit state for PIN verification. Keyed by "local" since the gate is
 // only reachable from the renderer; mobile phone already has its own PIN.
 let _pinFailures = [];
-const PIN_WINDOW_MS = 10 * 60 * 1000;
-const PIN_MAX_FAILURES = 8;
+const PIN_WINDOW_MS = 15 * 60 * 1000;
+const PIN_MAX_FAILURES = 5;
 
 // Persist rate-limit state to disk so restart doesn't clear it.
 const PIN_STATE_PATH = path.join(require('os').tmpdir(), 'mithnah-pin-state.json');
