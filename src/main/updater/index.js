@@ -250,9 +250,15 @@ function applyFeedOverride(logger) {
     return false;
   }
   if (/^https?:\/\//.test(feed) && !/PLACEHOLDER|REPLACE_ME/.test(feed)) {
-    autoUpdater.setFeedURL({ provider: 'generic', url: feed });
-    logger.log(`[updater] feed override: generic ${feed}`);
-    return true;
+    const isHttps = /^https:\/\//.test(feed);
+    const isLoopback = /^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(feed);
+    if (isHttps || isLoopback) {
+      autoUpdater.setFeedURL({ provider: 'generic', url: feed });
+      logger.log(`[updater] feed override: generic ${feed}`);
+      return true;
+    }
+    logger.warn(`[updater] rejecting non-HTTPS MITHNAH_UPDATE_FEED (http-only is MITM-risky): ${feed}`);
+    return false;
   }
   logger.warn(`[updater] ignoring malformed MITHNAH_UPDATE_FEED: ${feed}`);
   return false;
@@ -272,6 +278,9 @@ function start({ getMainWindow: _getMainWindow, enabled, logger = console } = {}
 
   u.autoDownload = true;
   u.autoInstallOnAppQuit = true;
+  // Security hardening: never downgrade, never use web installer
+  u.allowDowngrade = false;
+  u.disableWebInstaller = true;
 
   const feedFromEnv = applyFeedOverride(logger);
   if (!feedFromEnv) {

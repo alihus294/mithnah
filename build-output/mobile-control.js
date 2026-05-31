@@ -179,6 +179,10 @@
       const retrySec = Number(data.retryAfterSec) || Number(resp.headers.get('Retry-After')) || 5;
       throw new Error(`تم حظر المحاولات مؤقتاً — أعد ${formatRetryDelay(retrySec, true)}`);
     }
+    if (resp.status === 409) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.message || 'تعارض في البيانات — جرّب تحديث الصفحة');
+    }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.message || ('خطأ ' + resp.status));
     return data;
@@ -224,7 +228,29 @@
     el._fadeTimer = setTimeout(() => { el.classList.remove('show'); }, 3500);
   }
 
-  // ─── Home tab render ─────────────────────────────────────────────
+  // ─── Socket.IO live state (falls back to polling) ────────────────
+  let socket = null;
+
+  function connectSocket(token) {
+    if (typeof io === 'undefined') return;
+    if (socket) { socket.disconnect(); socket = null; }
+    socket = io({ auth: { token }, transports: ['websocket', 'polling'] });
+    socket.on('connect', () => {
+      currentRefreshMs = BASE_REFRESH_MS;
+      refresh();
+    });
+    socket.on('disconnect', () => {
+      // Socket down — speed up polling so we don't miss updates
+      currentRefreshMs = Math.max(5000, Math.floor(BASE_REFRESH_MS / 2));
+      restartRefreshTimer();
+    });
+    socket.on('slideshow:state', () => refresh());
+    socket.on('state', () => refresh());
+  }
+
+  function disconnectSocket() {
+    if (socket) { socket.disconnect(); socket = null; }
+  }
   let lastSnapshot = null;
   let refreshTimer = null;
   let clockTimer   = null;
@@ -387,9 +413,46 @@
 
   // ─── Controls tab ────────────────────────────────────────────────
   function wireControls() {
+    // Destructive tracker commands (close, reset) require 2-tap confirm.
+    const DESTRUCTIVE_TRACKER = new Set(['close', 'reset']);
+
     document.querySelectorAll('[data-tracker]').forEach((btn) => {
+      const action = btn.getAttribute('data-tracker');
+      if (DESTRUCTIVE_TRACKER.has(action)) {
+        let confirmTimer = null;
+        const originalLabel = btn.textContent;
+        const resetBtn = () => {
+          btn.textContent = originalLabel;
+          btn.removeAttribute('data-armed');
+          if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+        };
+        // Disarm if another tracker button is tapped
+        document.querySelectorAll('[data-tracker]').forEach((other) => {
+          if (other === btn) return;
+          other.addEventListener('click', () => {
+            if (btn.getAttribute('data-armed') === 'true') resetBtn();
+          });
+        });
+        guardedClick(btn, async () => {
+          if (btn.getAttribute('data-armed') !== 'true') {
+            btn.setAttribute('data-armed', 'true');
+            btn.textContent = 'تأكيد؟';
+            if (confirmTimer) clearTimeout(confirmTimer);
+            confirmTimer = setTimeout(resetBtn, 4000);
+            return;
+          }
+          resetBtn();
+          try {
+            await authedPost('/api/tracker/command', { action });
+            toast('ctrl-toast', labelFor('tracker', action) + ' ✓', 'ok');
+          } catch (err) {
+            toast('ctrl-toast', err.message, 'err');
+          }
+        });
+        return;
+      }
+      // Non-destructive tracker commands (open, next, prev) — single tap
       guardedClick(btn, async () => {
-        const action = btn.getAttribute('data-tracker');
         try {
           await authedPost('/api/tracker/command', { action });
           toast('ctrl-toast', labelFor('tracker', action) + ' ✓', 'ok');
@@ -762,16 +825,34 @@
   }
 
   // ─── Lifecycle ───────────────────────────────────────────────────
+  let wakeLock = null;
+
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+    } catch (e) { /* unsupported or denied — ignore */ }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
+
   function startRefreshLoop() {
     if (refreshTimer) return;
     currentRefreshMs = BASE_REFRESH_MS;
     refresh();
     refreshTimer = setInterval(refresh, currentRefreshMs);
     if (!clockTimer) clockTimer = setInterval(tickCountdown, 1000);
+    requestWakeLock();
   }
   function stopRefreshLoop() {
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
     if (clockTimer)   { clearInterval(clockTimer); clockTimer = null; }
+    releaseWakeLock();
   }
 
   function onVisibilityChange() {
@@ -821,6 +902,7 @@
         $status.textContent = '';
         showDashboard();
         startRefreshLoop();
+        connectSocket(sessionStorage.getItem(TOKEN_KEY));
       } catch (err) {
         $status.textContent = err.message;
         $status.className = 'm-status m-status-danger';
@@ -830,6 +912,7 @@
     // Dashboard actions
     $('btn-refresh').addEventListener('click', refresh);
     $('btn-logout').addEventListener('click', () => {
+      disconnectSocket();
       sessionStorage.removeItem(TOKEN_KEY);
       sessionStorage.removeItem(TOKEN_EXP_KEY);
       stopRefreshLoop();
