@@ -73,6 +73,9 @@ async function verifyPinAgainstHash(pin, stored) {
   await _ensurePinState();
   const now = Date.now();
   _pinFailures = _pinFailures.filter((t) => now - t < PIN_WINDOW_MS);
+  // TOCTOU fix: check rate-limit BEFORE comparing so concurrent racing
+  // threads can't all squeeze through during the brief window between
+  // the length check and the final save.
   if (_pinFailures.length >= PIN_MAX_FAILURES) {
     throw new Error('تم تجاوز عدد المحاولات المسموح به — انتظر قليلاً');
   }
@@ -83,8 +86,7 @@ async function verifyPinAgainstHash(pin, stored) {
   const b = Buffer.from(candidate, 'hex');
   if (a.length !== b.length) { _pinFailures.push(now); await _savePinFailures(); return false; }
   const ok = crypto.timingSafeEqual(a, b);
-  if (!ok) _pinFailures.push(now);
-  await _savePinFailures();
+  if (!ok) { _pinFailures.push(now); await _savePinFailures(); }
   return ok;
 }
 
@@ -147,6 +149,10 @@ async function importConfigFrom(dialog, window, applyFn) {
   if (raw.length > 1024 * 1024) throw new Error('config file too large');
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== 'object') throw new Error('not an object');
+  // Warn if schemaVersion is missing — the config may be from an older app version
+  if (!('schemaVersion' in parsed)) {
+    console.warn('[Mithnah] importConfigFrom: imported config is missing schemaVersion — may need manual review');
+  }
   // Guard against prototype pollution
   const forbiddenKeys = ['__proto__', 'constructor', 'prototype'];
   if (Object.keys(parsed).some(k => forbiddenKeys.includes(k))) {

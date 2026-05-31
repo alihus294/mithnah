@@ -86,9 +86,16 @@ function initIpcHandlers(deps) {
 
   // ── App Features ───────────────────────────────────────────────────────
 
-  ipcMain.handle('app:set-settings-pin', async (event, { pin } = {}) => {
+  ipcMain.handle('app:set-settings-pin', async (event, { pin, currentPin } = {}) => {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
+      const cfg = prayerTimes.getConfig();
+      const existingHash = cfg.settingsPinHash;
+      // If a PIN already exists, caller must supply the current one
+      if (existingHash) {
+        const verified = await appFeatures.verifyPinAgainstHash(String(currentPin || ''), existingHash);
+        if (!verified) return { ok: false, error: 'current PIN incorrect' };
+      }
       if (pin === '' || pin == null) {
         await prayerTimes.setConfig({ settingsPinHash: null });
         appFeatures.resetPinRateLimit();
@@ -177,6 +184,14 @@ function initIpcHandlers(deps) {
     if (!isFromMainWindow(event)) return { ok: false, error: 'forbidden' };
     try {
       const cfg = prayerTimes.getConfig();
+      // Emergency env-var bypass for kiosk rescue (local admin only)
+      const rescue = process.env.MASJID_KIOSK_RESCUE;
+      if (rescue && rescue === '1') {
+        kioskQuitRequested = true;
+        const { app } = require('electron');
+        setImmediate(() => app.quit());
+        return { ok: true, data: { quitting: true, rescue: true } };
+      }
       if (cfg.settingsPinHash) {
         const ok = appFeatures.verifyPinAgainstHash(String(pin || ''), cfg.settingsPinHash);
         if (!ok) return { ok: false, error: 'رمز غير صحيح' };

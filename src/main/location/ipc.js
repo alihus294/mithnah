@@ -103,6 +103,24 @@ function register(ipcMain, logger = console) {
       const name = typeof payload.name === 'string' && payload.name.trim()
         ? payload.name.trim()
         : 'Custom';
+
+      // Sanity-check: reject GPS handoff if new location is > 50 km from
+      // the previously saved location (prevents accidental far-away taps).
+      const currentCfg = prayerTimes.getConfig();
+      const currentLoc = currentCfg && currentCfg.location;
+      if (currentLoc && Number.isFinite(currentLoc.lat) && Number.isFinite(currentLoc.lng)) {
+        const R = 6371; // Earth radius in km
+        const toRad = (d) => d * Math.PI / 180;
+        const dLat = toRad(lat - currentLoc.lat);
+        const dLng = toRad(lng - currentLoc.lng);
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(currentLoc.lat)) * Math.cos(toRad(lat)) * Math.sin(dLng / 2) ** 2;
+        const distanceKm = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        if (distanceKm > 50) {
+          return { ok: false, error: `location jump too large (${Math.round(distanceKm)} km > 50 km)` };
+        }
+      }
+
       // By default only the coordinates change — the method and fiqh stay
       // whatever the user picked (Jafari by default). If the caller passes
       // `alignMethodToRegion: true`, we additionally switch to the regional

@@ -79,6 +79,25 @@ async function startRemoteControlServer() {
   const remoteControlApp = express();
   remoteControlApp.disable('x-powered-by');
 
+  // Content-Security-Policy for mobile-control UI
+  // All scripts are external (no inline); 'self' covers the same-origin
+  // mobile-control.js and vendor assets.
+  remoteControlApp.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy',
+      "default-src 'self'; " +
+      "script-src 'self'; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "font-src 'self'; " +
+      "img-src 'self' data:; " +
+      "connect-src 'self'; " +
+      "object-src 'none'; " +
+      "base-uri 'self'; " +
+      "frame-ancestors 'none'; " +
+      "form-action 'self'"
+    );
+    next();
+  });
+
   // Same-origin enforcement for state-changing methods.
   // Rejects cross-origin POSTs and requests with missing Origin header.
   remoteControlApp.use((req, res, next) => {
@@ -114,34 +133,67 @@ async function startRemoteControlServer() {
     res.json(getRemoteRendererStatePayload());
   });
 
-  // PIN verification with rate limiting
+  // Config endpoint (read-only mirror of prayerTimes config)
+  remoteControlApp.get('/api/config', (_req, res) => {
+    const cfg = prayerTimes.getConfig();
+    // Reject non-string values to prevent prototype pollution / type confusion
+    const safe = {};
+    for (const [k, v] of Object.entries(cfg)) {
+      // Never leak PIN hash over the network
+      if (k === 'settingsPinHash') continue;
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) {
+        safe[k] = v;
+      } else if (Array.isArray(v) && v.every(i => typeof i === 'string')) {
+        safe[k] = v;
+      } else if (typeof v === 'object' && v !== null) {
+        // shallow objects only (location, etc.)
+        const objSafe = {};
+        for (const [ok, ov] of Object.entries(v)) {
+          if (typeof ov === 'string' || typeof ov === 'number' || typeof ov === 'boolean' || ov === null) {
+            objSafe[ok] = ov;
+          }
+        }
+        safe[k] = objSafe;
+      }
+    }
+    res.json(safe);
+  });
+
+  // PIN verification with rate limiting (IP-based with server-set cookie)
   const MAX_PIN_ATTEMPTS = 5;
   const PIN_LOCKOUT_MS = 30000;
 
   remoteControlApp.post('/api/pin', (req, res) => {
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
+    // Server-generated cookie — client can't forge it (HttpOnly, Secure in prod)
+    let clientToken = req.headers['x-mithnah-client'];
+    if (!clientToken || !/^[a-f0-9]{32}$/.test(clientToken)) {
+      clientToken = crypto.randomBytes(16).toString('hex');
+      res.setHeader('X-Mithnah-Client', clientToken);
+    }
+    const lockoutKey = `${clientIp}#${clientToken}`;
     const now = Date.now();
-    const failures = pinFailures.get(clientIp);
+    const failures = pinFailures.get(lockoutKey);
     if (failures) {
       if (failures.count >= MAX_PIN_ATTEMPTS && now - failures.lastAttempt < PIN_LOCKOUT_MS) {
         return res.status(429).json({ success: false, error: 'too many attempts, try again later' });
       }
       if (now - failures.lastAttempt >= PIN_LOCKOUT_MS) {
-        pinFailures.delete(clientIp);
+        pinFailures.delete(lockoutKey);
       }
     }
 
     const { pin } = req.body || {};
     if (pin === MOBILE_CONTROL_PIN) {
-      pinFailures.delete(clientIp);
+      pinFailures.delete(lockoutKey);
       const token = crypto.randomBytes(32).toString('hex');
       remoteSessionTokens.set(token, { createdAt: Date.now(), lastUsed: Date.now() });
       res.json({ success: true, token });
     } else {
-      const current = pinFailures.get(clientIp) || { count: 0, lastAttempt: 0 };
+      const current = pinFailures.get(lockoutKey) || { count: 0, lastAttempt: 0 };
       current.count++;
       current.lastAttempt = now;
-      pinFailures.set(clientIp, current);
+      pinFailures.set(lockoutKey, current);
       res.status(401).json({ success: false, error: 'invalid pin' });
     }
   });

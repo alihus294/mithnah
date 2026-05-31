@@ -54,6 +54,41 @@ process.on('uncaughtException', (err) => {
   console.error('[Mithnah] uncaughtException:', err);
 });
 
+// --- Startup clock-skew check vs NTP ---
+// Warn if system clock is off by > 5 minutes — prayer times depend on it.
+async function checkClockSkew() {
+  try {
+    const ntpTime = await new Promise((resolve, reject) => {
+      const client = require('dgram').createSocket('udp4');
+      const buf = Buffer.alloc(48);
+      buf[0] = 0x1b; // NTP v3, mode 3 (client)
+      const timeout = setTimeout(() => { client.close(); reject(new Error('ntp timeout')); }, 3000);
+      client.on('error', (err) => { clearTimeout(timeout); client.close(); reject(err); });
+      client.on('message', (msg) => {
+        clearTimeout(timeout);
+        client.close();
+        // NTP timestamp starts at byte 40, 64-bit fixed point
+        const secondsSince1900 = msg.readUInt32BE(40);
+        const ntpEpoch = new Date('1900-01-01T00:00:00Z').getTime();
+        resolve(new Date(ntpEpoch + secondsSince1900 * 1000));
+      });
+      client.send(buf, 123, 'pool.ntp.org', (err) => {
+        if (err) { clearTimeout(timeout); client.close(); reject(err); }
+      });
+    });
+    const skewMs = Math.abs(Date.now() - ntpTime.getTime());
+    if (skewMs > 5 * 60 * 1000) {
+      console.warn(`[Mithnah] CLOCK SKEW WARNING: system clock is off by ${Math.round(skewMs / 1000)}s — prayer times will be wrong`);
+    } else {
+      console.log(`[Mithnah] Clock skew OK: ${Math.round(skewMs / 1000)}s`);
+    }
+  } catch (err) {
+    console.warn('[Mithnah] NTP check failed (offline?):', err.message);
+  }
+}
+// Run once at startup (non-blocking)
+checkClockSkew();
+
 // Prevent a second instance from clobbering port 3100 and window. The second
 // launch is forwarded (main window focused) rather than opened.
 if (!app.requestSingleInstanceLock()) {
@@ -87,16 +122,34 @@ const MOBILE_CONTROL_PORT = 3100;
 // 6-digit PIN by default (~19.9 bits entropy vs 13.3 for 4-digit). Operator
 // can override via MASJID_REMOTE_PIN. Backwards-compat: if they set a 4-digit
 // PIN in env we still honor it.
-function defaultPin() {
-  // Per-device PIN: derive from sha256(hostname + username + 'mithnah-pin-v1')
-  // so two installs on different machines don't share the same PIN by
-  // default. The literal "739156" below is only the catch-all if
-  // os.hostname() / os.userInfo() throw — kept for backwards-compat with
-  // earlier installs where that fallback got baked into operator notes.
+// Per-device PIN: derive from sha256(hostname + username + 'mithnah-pin-v1')
+// so two installs on different machines don't share the same PIN by
+// default. The literal "739156" below is only the catch-all if
+// os.hostname() / os.userInfo() throw — kept for backwards-compat with
+// earlier installs where that fallback got baked into operator notes.
+const PIN_SALT_FILE = path.join(USER_DATA_PATH, 'pin-salt.json');
+
+async function getOrCreatePinSalt() {
+  try {
+    const raw = await fsp.readFile(PIN_SALT_FILE, 'utf8');
+    const data = JSON.parse(raw);
+    if (data && typeof data.salt === 'string') return data.salt;
+  } catch (_) {}
+  const salt = crypto.randomBytes(8).toString('hex');
+  await fsp.writeFile(PIN_SALT_FILE, JSON.stringify({ salt, createdAt: Date.now() }), 'utf8');
+  return salt;
+}
+
+async function defaultPin() {
   try {
     const os = require('os');
+    const base = os.hostname() + os.userInfo().username + 'mithnah-pin-v1';
+    // Add a persisted random salt so the derived PIN isn't deterministic across
+    // reinstalls on the same machine (defence-in-depth against an
+    // attacker who knows the hostname+username).
+    const salt = await getOrCreatePinSalt();
     const hash = crypto.createHash('sha256')
-      .update(os.hostname() + os.userInfo().username + 'mithnah-pin-v1')
+      .update(base + salt)
       .digest('hex');
     // Take first 6 hex digits -> 0..16777215 -> mod 1e6 -> zero-padded.
     const n = parseInt(hash.slice(0, 6), 16) % 1_000_000;
@@ -105,7 +158,11 @@ function defaultPin() {
     return '739156';
   }
 }
-const MOBILE_CONTROL_PIN = String(process.env.MASJID_REMOTE_PIN || defaultPin());
+// Resolve PIN asynchronously at startup (top-level await not available in CJS)
+let MOBILE_CONTROL_PIN = '739156';
+(async () => {
+  MOBILE_CONTROL_PIN = String(process.env.MASJID_REMOTE_PIN || await defaultPin());
+})();
 const REMOTE_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 // --- RUNTIME MODES & PATHS ---
