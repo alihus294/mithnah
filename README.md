@@ -67,7 +67,7 @@ concurrently, with devtools detached.
 npm test
 ```
 
-One hundred and twenty-six tests cover the prayer-times calculator, config
+One hundred and thirty-six tests cover the prayer-times calculator, config
 persistence, Hijri conversion, region detection, marja presets, city
 reverse-geocoding, slideshow state machine, and more.
 
