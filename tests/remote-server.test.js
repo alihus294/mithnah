@@ -246,8 +246,10 @@ function makeRes() {
   return {
     statusCode: 200,
     body: undefined,
+    headers: {},
     status(code) { this.statusCode = code; return this; },
-    json(payload) { this.body = payload; return this; }
+    json(payload) { this.body = payload; return this; },
+    setHeader(name, value) { this.headers[name] = value; return this; }
   };
 }
 
@@ -540,17 +542,24 @@ describe('remote-server', () => {
       await h.remote.startRemoteControlServer();
       const app = h.createdApps[0];
 
-      // Lock out an IP with 5 bad PINs
+      // Lock out an IP with 5 bad PINs — use a sticky clientToken so the
+      // lockout key (ip#token) stays the same across all attempts
+      const lockedClientToken = 'aaaabbbbccccddddaaaabbbbccccdddd';
+      const lockedHeaders = {
+        host: '192.168.1.10:3456',
+        origin: 'http://192.168.1.10:3456',
+        'x-mithnah-client': lockedClientToken
+      };
       for (let i = 0; i < 5; i++) {
         invokePost(app, '/api/pin', {
-          headers: { host: '192.168.1.10:3456', origin: 'http://192.168.1.10:3456' },
+          headers: lockedHeaders,
           body: { pin: 'wrong' },
           ip: '10.0.0.9',
           remoteAddress: '10.0.0.9'
         });
       }
       const locked = invokePost(app, '/api/pin', {
-        headers: { host: '192.168.1.10:3456', origin: 'http://192.168.1.10:3456' },
+        headers: lockedHeaders,
         body: { pin: 'wrong' },
         ip: '10.0.0.9',
         remoteAddress: '10.0.0.9'
@@ -581,7 +590,7 @@ describe('remote-server', () => {
       await h.remote.startRemoteControlServer();
       const app2 = h.createdApps[1];
       const stillLocked = invokePost(app2, '/api/pin', {
-        headers: { host: '192.168.1.10:3456', origin: 'http://192.168.1.10:3456' },
+        headers: lockedHeaders,
         body: { pin: 'wrong' },
         ip: '10.0.0.9',
         remoteAddress: '10.0.0.9'
