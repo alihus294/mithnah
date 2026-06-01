@@ -9,6 +9,7 @@ const { ipcMain, dialog } = require('electron');
 const path = require('path');
 const fsp = require('fs/promises');
 const { resolveBrowserWindow, isLiveBrowserWindow } = require('./frame-guard');
+const updater = require('./updater');
 
 // Dependencies injected at init time
 let mainWindow = null;
@@ -24,7 +25,6 @@ let prayerTimes = null;
 let appFeatures = null;
 let configPathOf = null;
 let USER_DATA_PATH = null;
-let updater = null;
 
 function initIpcHandlers(deps) {
   mainWindow = deps.mainWindow;
@@ -40,7 +40,6 @@ function initIpcHandlers(deps) {
   appFeatures = deps.appFeatures;
   configPathOf = deps.configPathOf;
   USER_DATA_PATH = deps.USER_DATA_PATH;
-  updater = deps.updater;
 
   // ── Zoom ───────────────────────────────────────────────────────────────
 
@@ -218,15 +217,34 @@ function initIpcHandlers(deps) {
 
   // ── Updater Restart ────────────────────────────────────────────────────
 
-  ipcMain.handle('app:updater-restart-install', () => {
+  ipcMain.handle('app:updater-restart-install', (event) => {
+    if (!isFromMainWindow(event)) {
+      return { ok: false, error: 'forbidden' };
+    }
     try {
-      const mod = require('electron-updater');
-      if (!mod || !mod.autoUpdater) return { ok: false, error: 'updater unavailable' };
+      const current = updater.getState();
+
+      if (!current || current.state !== 'ready') {
+        return {
+          ok: false,
+          error: `update is not ready to install; current state is ${current?.state || 'unknown'}`,
+          state: current?.state || 'unknown'
+        };
+      }
+
       kioskQuitRequested = true;
+
       setImmediate(() => {
-        try { mod.autoUpdater.quitAndInstall(false, true); }
-        catch (err) { console.error('[updater] quitAndInstall failed:', err); }
+        try {
+          const result = updater.quitAndInstallIfReady(console);
+          if (!result.ok) {
+            console.warn('[updater] quitAndInstall refused:', result.error);
+          }
+        } catch (err) {
+          console.error('[updater] quitAndInstall failed:', err);
+        }
       });
+
       return { ok: true };
     } catch (err) {
       return { ok: false, error: err.message };

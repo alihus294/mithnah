@@ -35,6 +35,14 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     title: 'Mithnah',
     fullscreen: true,
+    frame: false,
+    titleBarStyle: 'hidden',
+    autoHideMenuBar: true,
+    titleBarOverlay: {
+      color: '#0a0a0a',
+      symbolColor: '#ffffff',
+      height: 0
+    },
     webPreferences: {
       preload: path.join(__dirname, '../preload.js'),
       contextIsolation: true,

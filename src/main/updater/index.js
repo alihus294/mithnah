@@ -349,4 +349,26 @@ async function checkNow(logger = console) {
   }
 }
 
-module.exports = { start, stop, getState, checkNow, IPC_STATE_CHANNEL };
+function quitAndInstallIfReady(logger = console) {
+  const current = getState();
+  if (!current || current.state !== 'ready') {
+    return {
+      ok: false,
+      error: `update is not ready to install; current state is ${current?.state || 'unknown'}`,
+      state: current?.state || 'unknown'
+    };
+  }
+  try {
+    const u = safeRequireUpdater();
+    if (!u) {
+      return { ok: false, error: 'electron-updater not available' };
+    }
+    u.quitAndInstall(false, true);
+    return { ok: true };
+  } catch (err) {
+    logger.error('[updater] quitAndInstall failed:', err);
+    return { ok: false, error: err.message };
+  }
+}
+
+module.exports = { start, stop, getState, checkNow, IPC_STATE_CHANNEL, quitAndInstallIfReady };

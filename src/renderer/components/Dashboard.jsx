@@ -4,7 +4,7 @@
 //   3. Event strip→ today's event OR the nearest upcoming one (never both)
 //   4. Prayers    → 6 cells across, active cell glows; salawat underneath
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getTodayAndNext, hijriToday, getTodayEvents, getConfig,
          onKioskUnlockRequest, kioskQuit, verifySettingsPin,
          onConfigChanged, reportIpcFailure, reportIpcRecovered } from '../lib/ipc.js';
@@ -327,7 +327,7 @@ function useMosqueLogo() {
   return src;
 }
 
-export default function Dashboard() {
+function Dashboard() {
   const now = useClock();
   const state = usePrayerTimes();
   const hijri = useHijri();
@@ -651,3 +651,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default React.memo(Dashboard);

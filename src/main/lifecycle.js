@@ -115,7 +115,13 @@ function initLifecycle(lifecycleDeps) {
 
       // Start updater (gated by env)
       if (process.env.MITHNAH_AUTO_UPDATE === '1') {
-        try { deps.updater.start(); } catch (_) {}
+        try {
+          deps.updater.start({
+            getMainWindow: deps.getMainWindow,
+            enabled: true,
+            logger: console
+          });
+        } catch (_) {}
       }
 
       // Start auto-content scheduler
