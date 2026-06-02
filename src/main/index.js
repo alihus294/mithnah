@@ -108,12 +108,9 @@ app.on('second-instance', () => {
   }
 });
 
-// Keep mosque text crisp on large displays and let Chromium favor GPU-backed rasterization.
+// Keep mosque text crisp on large displays.
 app.commandLine.appendSwitch('high-dpi-support', '1');
 app.commandLine.appendSwitch('force-device-scale-factor', '1');
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 // --- CONSTANTS & CONFIG ---
@@ -600,5 +597,6 @@ lifecycle.initLifecycle({
   prayerTimesReady,
   MOBILE_CONTROL_PORT,
   MOBILE_CONTROL_PIN,
-  QRCode
+  QRCode,
+  applyZoom
 });

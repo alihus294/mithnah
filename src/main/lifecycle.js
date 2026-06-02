@@ -63,13 +63,10 @@ function initLifecycle(lifecycleDeps) {
     }
   });
 
-  // Keep mosque text crisp on large displays and let Chromium favor GPU-backed rasterization.
-  app.commandLine.appendSwitch('high-dpi-support', '1');
-  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+  // Let Chromium favor GPU-backed rasterization.
   app.commandLine.appendSwitch('enable-gpu-rasterization');
   app.commandLine.appendSwitch('enable-zero-copy');
   app.commandLine.appendSwitch('ignore-gpu-blocklist');
-  app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
   app.whenReady().then(async () => {
     try {
@@ -104,6 +101,9 @@ function initLifecycle(lifecycleDeps) {
       }
 
       const win = await deps.createWindow();
+      if (typeof deps.applyZoom === 'function') {
+        deps.applyZoom(win);
+      }
       wireSlideshowStateToWindow(win);
 
       // Start remote control server
@@ -153,7 +153,12 @@ function initLifecycle(lifecycleDeps) {
   app.on('activate', () => {
     const win = deps.getMainWindow();
     if (!win || win.isDestroyed()) {
-      deps.createWindow().then((created) => wireSlideshowStateToWindow(created)).catch(() => {});
+      deps.createWindow().then((created) => {
+        if (typeof deps.applyZoom === 'function') {
+          deps.applyZoom(created);
+        }
+        wireSlideshowStateToWindow(created);
+      }).catch(() => {});
     }
   });
 }
